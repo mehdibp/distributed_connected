@@ -19,9 +19,17 @@ class Distributed_System():
         self.x = np.random.rand(N) * L  # Initialize xᵢ
         self.y = np.random.rand(N) * L  # Initialize yᵢ
 
-        self.r = np.ones(N)        # Transition Range
+        self.x[0] = 0; self.x[1] = 1; self.x[2] = 0; self.x[3] = 1.5
+        self.y[0] = 0; self.y[1] = 0; self.y[2] = 1; self.y[3] = 1.5
+
+        #         delta = L/(N**0.5)
+        #         for i in range(N):
+        #             self.x[i] = 0.5+ int(i/ round(N**0.5)) *delta + np.random.rand()*0.2*delta
+        #             self.y[i] = 0.5+ int(i% round(N**0.5)) *delta + np.random.rand()*0.2*delta
+
+        self.r = np.ones(N)  # Wave sending radius
         self.A = np.zeros((N, N))  # Adjacency Matrix
-        self.k = np.zeros(N)       # Degree of a vertex
+        self.k = np.zeros(N)  # Degree of a vertex
         for i in range(N):
             for j in range(i + 1, N):
                 if ((self.x[i] - self.x[j]) ** 2 + (self.y[i] - self.y[j]) ** 2) ** 0.5 < self.r[i]:
@@ -29,40 +37,41 @@ class Distributed_System():
                     self.k[i] += self.A[i][j]
                     self.k[j] += self.A[i][j]
 
-    def step(self, r):
+    def step(self, action):
         Hamilton_t0 = np.zeros(self.N)
         Hamilton_t1 = np.zeros(self.N)
         for i in range(self.N):
             Hamilton_t0[i], e = self.Hamiltonian(i)  ###
 
-        self.r += (r - 1) * (0.25 * self.L ** 2 / self.N) * np.random.rand()
+        self.r += action * (0.25 * self.L ** 2 / self.N) * np.random.rand()
         self.A = np.zeros((N, N))
         self.k = np.zeros(N)
-        mean_r_ij = np.zeros((N))
+        rho = np.zeros(N)
 
         for i in range(self.N):
-            if self.r[i] < 0:      self.r[i] = 0
-            if self.r[i] > self.L: self.r[i] = self.L
+            if self.r[i] < 0:     self.r[i] = 0
+            if self.r[i] > 2 ** 0.5 * self.L: self.r[i] = 2 ** 0.5 * self.L
 
         for i in range(self.N):
             for j in range(i + 1, self.N):
                 distance = ((self.x[i] - self.x[j]) ** 2 + (self.y[i] - self.y[j]) ** 2) ** 0.5
-                if distance < self.r[i] or distance < self.r[j]:
-                    self.A[i][j] = self.A[j][i] = 1;
+                if distance <= self.r[i] and distance <= self.r[j]:
+                    self.A[i][j] = self.A[j][i] = 1
                     self.k[i] += self.A[i][j]
                     self.k[j] += self.A[i][j]
 
-                    mean_r_ij[i] += distance
-                    mean_r_ij[j] += distance
+                if distance <= 1.2 * self.N / self.L ** 2:
+                    rho[i] += 1
+                    rho[j] += 1
 
         for i in range(self.N):
             Hamilton_t1[i], e = self.Hamiltonian(i)  ###
         reward = Hamilton_t0 - Hamilton_t1
-        return ([self.k, self.r, mean_r_ij / (self.k + 1e-10)], reward)
+        return ([self.k, self.r, rho], reward)
 
     def Hamiltonian(self, i):
         alfa_1 = -0.5
-        alfa_2 = +0.05
+        alfa_2 = +0.1
         alfa_3 = +0.2
         alfa_4 = -0.5
 
@@ -74,7 +83,7 @@ class Distributed_System():
         H = alfa_1 * self.k[i] ** 2 + alfa_2 * self.k[i] ** 3 + alfa_3 * self.r[i] ** 2 + alfa_4 * fourth[i]
         return H, fourth[i]  ###
 
-    def Plot(self, episode):  ###
+    def Plot(self, episode):
         options = {'node_size': 60, 'width': 0.3}
 
         G = nx.from_numpy_array(self.A)
@@ -84,17 +93,15 @@ class Distributed_System():
 
         nx.draw_networkx(G, pos, with_labels=False, **options)
 
-        plt.text(self.L - 0.15 * self.L, self.L + 0.3, f'Episode {episode}', fontname='Comic Sans MS', fontsize=12)  ###
+        plt.text(self.L - 0.15 * self.L, self.L + 0.3, f'Episode {episode}', fontname='Comic Sans MS', fontsize=12)
         plt.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)
-        plt.xlim(-0.1, self.L + 0.1);
-        plt.ylim(-0.1, self.L + 0.1)
-        plt.grid(alpha=0.3)
+        plt.xlim(-0.1, self.L + 0.1); plt.ylim(-0.1, self.L + 0.1); plt.grid(alpha=0.3)
         camera.snap()
 
 
 # ------------------------------------------------------------------
-N = 25                    # Number of agents
-L = 5                     # The length of the simulation box
+N = 4                     # Number of agents
+L = 2                     # The length of the simulation box
 
 env = Distributed_System(N,L)
 
@@ -105,32 +112,26 @@ np.random.seed(42)
 input_shape = [3]              # == env.observation_space.shape
 n_outputs = 3                  # == env.action_space.n
 
-model = []
+model = []                     # make a model for each agent
 for i in range(N):
     model.append(keras.models.Sequential([
-        keras.layers.Dense(10, activation="elu", input_shape=input_shape),
-        keras.layers.Dense(10, activation="elu"),
+        keras.layers.Dense(2, activation="relu", input_shape=input_shape),
+        keras.layers.Dense(2, activation="relu"),
         keras.layers.Dense(n_outputs)
     ]))
 
-
 # ------------------------------------------------------------------
-replay_memory = []
-for i in range(N):
-    replay_memory.append(deque(maxlen=800))
-
-
-def play_one_step(env, state, epsilon=0):
+def play_one_step(env, state, epsilon=0.0):
     action = np.zeros(N)
 
     for i in range(N):
         if np.random.rand() < epsilon:
             action[i] = np.random.randint(n_outputs)
         else:
-            actionnnn = model[i].predict(np.reshape(state[i], (3)).reshape(1, -1), verbose=0)[0]
+            actionnnn = model[0].predict(np.reshape(state[i], (3)).reshape(1, -1), verbose=0)[0]
             action[i] = np.argmax(actionnnn)
 
-    next_state, reward = env.step(action)
+    next_state, reward = env.step((action - 0.5) * 2)
     next_state = [[next_state[j][i] for j in range(3)] for i in range(N)]
 
     for i in range(N):
@@ -138,13 +139,13 @@ def play_one_step(env, state, epsilon=0):
     return next_state, reward
 
 # ------------------------------------------------------------------
-batch_size = 32
-discount_rate = 0.95
-optimizer = keras.optimizers.legacy.Adam(learning_rate=1e-2)
-loss_fn = keras.losses.mean_squared_error
+optimizer = tf.keras.optimizers.legacy.Adam(learning_rate=0.01)
+loss_fn = tf.keras.losses.mean_squared_error
 
 
-def training_step(i, batch_size):
+def training_step(i, batch_size, discount):
+    discount_rate = discount
+
     indices = np.random.randint(len(replay_memory[i]), size=batch_size)  # 32ta random number between[0 - len(replay)]
     batch = [replay_memory[i][index] for index in indices]  # number in replay_memory[indices]
 
@@ -152,31 +153,28 @@ def training_step(i, batch_size):
         np.array([experience[field_index] for experience in batch])
         for field_index in range(4)]
 
-    next_Q_values = model[i].predict(next_states, verbose=0)  # 32 predict of 2 actions
+    for j in range(len(rewards)):
+        if rewards[j] < 0.05 and rewards[j] > -0.1: rewards[j] = 0
+
+    next_Q_values = model[0].predict(next_states, verbose=0)  # 32 predict of 2 actions
     max_next_Q_values = np.max(next_Q_values, axis=1)  # choose higher probiblity of each actions (of each 32)
-    target_Q_values = (rewards > 0.6) * 1. + discount_rate * max_next_Q_values  # Equation 18-5. Q-Learning algorithm
+    if max_next_Q_values < 0: discount_rate = 1 / discount
+    target_Q_values = rewards + discount_rate * max_next_Q_values  # Equation 18-5. Q-Learning algorithm
     target_Q_values = target_Q_values.reshape(-1, 1)  # reshape to (32,1) beacuse of Q_values.shape
 
     mask = tf.one_hot(actions, n_outputs)
     with tf.GradientTape() as tape:
-        all_Q_values = model[i](states)
+        all_Q_values = model[0](states)
         Q_values = tf.reduce_sum(all_Q_values * mask, axis=1, keepdims=True)
         loss = tf.reduce_mean(loss_fn(target_Q_values, Q_values))
-    grads = tape.gradient(loss, model[i].trainable_variables)
-    optimizer.apply_gradients(zip(grads, model[i].trainable_variables))
+    grads = tape.gradient(loss, model[0].trainable_variables)
+    optimizer.apply_gradients(zip(grads, model[0].trainable_variables))
+
+    return all_Q_values, next_Q_values, Q_values, target_Q_values, loss, grads, model[0].trainable_variables  ###
 
 
 # ------------------------------------------------------------------
-env = Distributed_System(N, L)
-
-replay_memory = []
-for i in range(N):
-    replay_memory.append(deque(maxlen=800))
-
-state, reward = env.step(np.zeros(N))
-state = [[state[j][i] for j in range(3)] for i in range(N)]
-HH = []
-
+# f.close()
 f = open("log_C.txt", "w")
 f.write(f"episode \t epsilon \t ")
 for i in range(N): f.write(f"r{i} \t ")
@@ -187,53 +185,92 @@ for i in range(N): f.write(f"r{i}**2 \t ")
 for i in range(N): f.write(f"fourth{i} \t ")
 for i in range(N): f.write(f"H{i} \t ")
 for i in range(N): f.write(f"reward{i} \t ")
-f.write(f"Hamilton \t Time(one_step) \t Time(training) \n")
+f.write(f"Hamilton \t\t")
+for i in range(N): f.write(f"All Q{i} \t next Q{i} \t Q{i} \t target Q{i} \t LOSS{i} \t")  ###
+f.write(f"\t")
+for j in range(3): f.write(f"Grads {j} \t bias {j} \t ")  ###
+for j in range(3): f.write(f"Trainable {j} \t bias {j} \t ")  ###
+
+
+def log_print(env, episode, epsilon, H, reward, all_q, next_q, qq, target_q, LOSS, grad, trainable_variables):
+    f.write(f"\n{episode} \t {epsilon} \t ")
+    for i in range(N): f.write(f"{env.r[i]} \t ")
+    for i in range(N): f.write(f"{env.k[i]} \t ")
+    for i in range(N): f.write(f"{env.k[i] ** 2} \t ")
+    for i in range(N): f.write(f"{env.k[i] ** 3} \t ")
+    for i in range(N): f.write(f"{env.r[i] ** 2} \t ")
+    for i in range(N): f.write(f"{env.Hamiltonian(i)[1]} \t ")
+    for i in range(N): f.write(f"{env.Hamiltonian(i)[0]} \t ")
+    for i in range(N): f.write(f"{reward[i]} \t ")
+    f.write(f"{H} \t\t")
+
+    for i in range(N):
+        f.write(f"{all_q} \t ")
+        f.write(f"{next_q} \t ")
+        f.write(f"{qq} \t ")
+        f.write(f"{target_q} \t ")
+        f.write(f"{LOSS} \t ")
+
+    f.write(f"\t")
+    for j in range(6): f.write(f"{grad[j].numpy().ravel()} \t ")
+    for j in range(6): f.write(f"{trainable_variables[j].numpy().ravel()} \t ")
+
+
+# ------------------------------------------------------------------
+N = 4  # Number of agents
+L = 2  # The length of the simulation box
+env = Distributed_System(N, L)
+
+batch_size = 10
+discount_rate = 0.98
+
+best_H = 0; H = 0; LOSS = 0
+Hamilton = []
+replay_memory = []
+best_weights = []
+for i in range(N):
+    replay_memory.append(deque(maxlen=40))
+    best_weights.append(model[i].get_weights())
+
+state, reward = env.step(np.zeros(N))
+state = [[state[j][i] for j in range(3)] for i in range(N)]
 
 camera = Camera(plt.figure())
-start_total = time.time()
-for episode in range(4000):
-    Hamilton = 0
-    epsilon = max(1 - (episode) / 1000, 0.01)  # first is more random and than use greedy
 
-    ti_onestep = time.time()  ### not shown
+for episode in range(3000):
+    epsilon = max(1 - episode / 1000, 0.0)  # first is more random and than use greedy
     state, reward = play_one_step(env, state, epsilon)
-    tf_onestep = time.time()  ### not shown
 
-    ti_train = time.time()  ### not shown
-    if episode > 200:
+    if episode > 50:
         for i in range(N):
-            training_step(i, batch_size)
-    tf_train = time.time()  ### not shown
+            all_q, next_q, qq, target_q, LOSS, grad, trainable_variables = training_step(i, batch_size, discount_rate)
+        log_print(env, episode, epsilon, H, reward,
+                  all_q[0], next_q[0], qq[0], target_q[0], LOSS, grad, trainable_variables)
 
-    for i in range(N):  ###
-        Hamilton += env.Hamiltonian(i)[0]  ###
-    HH.append(Hamilton)  ###
+    H = 0
+    for i in range(N): H += env.Hamiltonian(i)[0]  # hamiltonian of the whole system  ###
+    Hamilton.append(H)
+
+    if H <= best_H and episode > 1000:  # find the minimum of Hamiltonian
+        for i in range(N):
+            best_weights[i] = model[i].get_weights()  # saving model weights for the best Hamiltonian
+            best_H = H
 
     if episode % 10 == 0:
         env.Plot(episode)
-        f.write(f"{episode} \t {epsilon} \t ")
-        for i in range(N): f.write(f"{env.r[i]} \t ")
-        for i in range(N): f.write(f"{env.k[i]} \t ")
-        for i in range(N): f.write(f"{env.k[i] ** 2} \t ")
-        for i in range(N): f.write(f"{env.k[i] ** 3} \t ")
-        for i in range(N): f.write(f"{env.r[i] ** 2} \t ")
-        for i in range(N): f.write(f"{env.Hamiltonian(i)[1]} \t ")
-        for i in range(N): f.write(f"{env.Hamiltonian(i)[0]} \t ")
-        for i in range(N): f.write(f"{reward[i]} \t ")
-        f.write(f"{Hamilton} \t {tf_onestep - ti_onestep} \t {tf_train - ti_train} \n")
 
-    print("\rEpisode: {}, eps: {:.3f}, Time One Step: {:.3f}".format(episode, epsilon, tf_onestep - ti_onestep), end="")
+    print("\rEpisode: {}, eps: {:.3f}, Min(Hamilton): {:.3f}, H: {:.3f}".format(episode, epsilon, best_H, H), end="")
 
-print(f"\nTotal Time: {time.time() - start_total}")
-
+# model.set_weights(best_weights)
 anim = camera.animate(interval=100, repeat=True, repeat_delay=500, blit=True)
-anim.save('animation_C.gif')
+anim.save('./animation/animation_C.gif')
 f.close()
 
 
 # ------------------------------------------------------------------
 # ------------------------------------------------------------------
-plt.plot(HH)
-plt.text(2700, max(HH)-200, "Min(H): %f" % (min(HH)) )
-plt.text(2700, max(HH)-400, "Arg(H): %f" % (np.argmin(HH)) )
+print(best_H)
+plt.plot(Hamilton)
+plt.text(1700, max(Hamilton)-1.65, "Min(H): %f" % (min(Hamilton)) )
+plt.text(1700, max(Hamilton)-2.15, "Arg(H): %f" % (np.argmin(Hamilton)) )
 plt.show()

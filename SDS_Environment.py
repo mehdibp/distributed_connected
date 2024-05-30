@@ -10,7 +10,7 @@ import tensorflow as tf
 # -------------------------------------------------------------------------------------------
 class Distributed_System():
     # ---------------------------------------------------------------------------------------
-    def __init__(self, N, L):
+    def __init__(self, N, L, flipping=False, on_off=False, moving=False):
         np.random.seed(44)
         self.N = N
         self.L = L
@@ -29,17 +29,23 @@ class Distributed_System():
                     self.A[i][j] = self.A[j][i] = 1
                     self.k[i]   += self.A[i][j]
                     self.k[j]   += self.A[i][j]
+
+        self.flipping = flipping
+        self.on_off   = on_off
+        self.moving   = moving
+        self.radian = (np.random.randint(360, size=self.N) -180)/180*np.pi    # The angle in which each node moves more preferably
+
     
     # ---------------------------------------------------------------------------------------    
     def step(self, action, episode):
 
-        if (episode+1)%100 == 0:
-            action = self.Turning_off_or_on(action)
+        if self.on_off == True:
+            if (episode+1)%100 == 0: action = self.Turning_off_or_on(action)
 
         delta_r = action*(0.16*self.L**2/self.N)*np.random.random(size=self.N)
-        _reward = self.calc_rewards(delta_r)
+        _reward = self.Calculate_rewards(delta_r)
         self.r += delta_r
-        self.check(delta_r, _reward)
+        if self.flipping == True: self.Flip_redius(delta_r, _reward)
         
         self.A = np.zeros((self.N,self.N))
         self.k = np.zeros(self.N)
@@ -62,10 +68,11 @@ class Distributed_System():
                     rho[j] += 1
                 if rho[i] > 8: rho[i] = 8       ### should debug in training
 
-        return ([ self.k+1, self.r+1, rho+1 ], -_reward)
+        if self.moving == True: self.Movement()
+        return ([ self.k+1, self.r+1, rho+1 ], -_reward) 
 
     # ---------------------------------------------------------------------------------------    
-    def check(self, delta_r, delta_H):
+    def Flip_redius(self, delta_r, delta_H):
         for i in range(self.N):
             if np.exp(-delta_H[i]/4) < np.random.random():     # delta_H < 0 --> f(x) > 1;
                 self.r[i] -= delta_r[i]*np.random.random()
@@ -76,7 +83,7 @@ class Distributed_System():
         #         self.r[i] -= delta_r[i]
 
     # ---------------------------------------------------------------------------------------    
-    def calc_rewards(self, delta_r):
+    def Calculate_rewards(self, delta_r):
         
         Hamilton_t0 = np.zeros(self.N)
         Hamilton_t1 = np.zeros(self.N)
@@ -126,7 +133,7 @@ class Distributed_System():
     def Turning_off_or_on(self, action):
         
         random = np.random.random()
-        for _ in range(10):
+        for _ in range(5):
             if random < 0.5:
                 choice = np.random.choice(self.N)
                 self.x = np.delete(self.x, choice)
@@ -148,20 +155,35 @@ class Distributed_System():
         return action
     
     # --------------------------------------------------------------------------------------- 
-    def move(self):
-        self.x = self.x + (0.16*self.L**2/self.N)*(np.random.random(size=self.N) -0.5)
-        self.y = self.y + (0.16*self.L**2/self.N)*(np.random.random(size=self.N) -0.5) 
+    def Movement(self):
+        rho = 0.01*(self.L**2/self.N)
+
+        # Assume a non-Markovian behavior for each particle and move according to it
+        for i in range(self.N):
+            if np.random.random() < 0.7: self.x[i] += rho/2*np.cos(self.radian[i])
+            else: self.x[i] += rho*(np.random.random() -0.5)
+
+            if np.random.random() < 0.7: self.y[i] += rho/2*np.sin(self.radian[i])
+            else: self.y[i] += rho*(np.random.random() -0.5) 
+
+            # Reflective boundary condition
+            if (self.x[i] > self.L) or (self.x[i] < 0): 
+                self.radian[i] = np.pi-self.radian[i] if self.radian[i] > 0 else -np.pi-self.radian[i]
+                self.x[i] = 0+rho if abs(self.x[i]) < abs(self.x[i]-self.L) else self.L-rho
+            if (self.y[i] > self.L) or (self.y[i] < 0): 
+                self.radian[i] = -self.radian[i]
+                self.y[i] = 0+rho if abs(self.y[i]) < abs(self.y[i]-self.L) else self.L-rho
 
     # ---------------------------------------------------------------------------------------
     def Plot(self, camera, episode):
-        options = { 'node_size': 60, 'width': 0.3 }
+        options = { 'node_size': 60, 'width': 1.5 }
         
         G = nx.from_numpy_array(self.A)
         for i in range(self.N):
             G.add_node(i, pos=(self.x[i], self.y[i]))
         pos = nx.get_node_attributes(G,'pos')
         
-        nx.draw_networkx(G, pos, with_labels=True, **options)
+        nx.draw_networkx(G, pos, with_labels=False, **options)
         giant = len((sorted(nx.connected_components(G), key=len, reverse=True))[0])/self.N * 100
         
         plt.text(self.L-0.15*self.L, self.L+0.3, f'Episode {episode}', fontname='Comic Sans MS', fontsize=12)
@@ -171,6 +193,9 @@ class Distributed_System():
         camera.snap()
         return giant
     
+
+
+
 
 # -------------------------------------------------------------------------------------------
 def training_step(i, model, n_outputs, replay_memory, batch_size, discount_rate):

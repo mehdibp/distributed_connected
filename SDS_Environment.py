@@ -184,21 +184,21 @@ class Distributed_System():
         pos = nx.get_node_attributes(G,'pos')
         
         nx.draw_networkx(G, pos, with_labels=False, **options)
-        giant = len((sorted(nx.connected_components(G), key=len, reverse=True))[0])/self.N * 100
+        # giant = len((sorted(nx.connected_components(G), key=len, reverse=True))[0])/self.N * 100
         
         plt.text(self.L-0.15*self.L, self.L+0.3, f'Episode {episode}', fontname='Comic Sans MS', fontsize=12)
         plt.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)
         plt.xlim(-0.1, self.L+0.1); plt.ylim(-0.1, self.L+0.1)
         plt.grid(alpha = 0.3)
         camera.snap()
-        return giant
+        # return giant
     
 
 
 
 
 # -------------------------------------------------------------------------------------------
-def training_step(i, model, n_outputs, replay_memory, batch_size, discount_rate):
+def training_step(i, model, n_outputs, replay_memory, batch_size=32, discount_rate=0.98):
     optimizer = tf.keras.optimizers.legacy.Adam(learning_rate=1e-2)
     loss_fn   = tf.keras.losses.mean_squared_error
     

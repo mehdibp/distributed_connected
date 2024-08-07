@@ -70,7 +70,8 @@ class Distributed_Agent():
                 self.k += 1 
             
             if distance <= 1.6: rho += 1
-            if rho > 8: rho = 8       ### should debug in training
+            if rho >  8: rho = 8                    ### should debug in training
+            if rho == 0: rho = self.N / self.L**2
 
 
         Hamilton_t1 = self.Hamiltonian()
@@ -106,6 +107,24 @@ class Distributed_Agent():
         #     delta_k = (self.k[i] - k_previous[i]) / (k_previous[i]+1e-12)
         #     if delta_k > 0 and np.random.random() < delta_k + 1/2*(0.8-delta_k):
         #         self.r[i] -= delta_r[i]
+
+    # ---------------------------------------------------------------------------------------
+    def SendRequest(self):
+        alfa_1 = -0.5
+        alfa_2 = +0.1
+        alfa_3 = +0.2
+        alfa_4 = -0.5
+
+        requested = []
+        for i in range(self.N-1):
+            distance = ( (self.x - self.OtherAgents[i].x)**2 + (self.y-self.OtherAgents[i].y)**2 )**0.5
+            if distance > self.r and distance <= self.OtherAgents[i].r:
+                delta_H = alfa_1*((self.k+1)**2 - self.k**2) + alfa_2*((self.k+1)**3 - self.k**3) + alfa_3*(distance**2 - self.r**2) - alfa_4*(1/distance)
+                requested.append([ distance, delta_H ])
+
+                ArgMinimum = np.argmin(np.array(requested)[:,1])
+                if np.exp(-requested[ArgMinimum][1] / 4) > np.random.random():
+                    self.r = requested[ArgMinimum][0]
 
     # --------------------------------------------------------------------------------------- 
     def Movement(self):
@@ -179,8 +198,8 @@ class Plot_Environment():
         self.Agents = Agents
 
         # Parameter for calculating tau in Calculate_Result()
-        self.P_ij = np.ones((self.N, self.N))
-        self.Q_ij = np.ones((self.N, self.N))
+        self.P_ij = np.ones((self.N, self.N))*1e-15
+        self.Q_ij = np.ones((self.N, self.N))*1e-15
         self.previous_A = np.zeros((self.N, self.N))
 
 
@@ -200,7 +219,7 @@ class Plot_Environment():
                     self.k[j]   += 1
     
     # ---------------------------------------------------------------------------------------
-    def Calculate_Result(self, Agents):
+    def Calculate_Result(self, Agents, s):
         self.Environmental_Changes(Agents)
 
         # Hamiltonian of the whole system -----------------------------------------
@@ -219,26 +238,28 @@ class Plot_Environment():
         # Calculate Tau = 1/sM sigma(P_ij/Q_ij) -----------------------------------
         for i in range(self.N):
             for j in range(i, self.N):
-                if self.previous_A[i][j] != self.A[i][j]: 
+                if self.previous_A[i][j] != self.A[i][j]:
                     self.Q_ij[i][j] += 1
                     self.Q_ij[j][i] += 1
 
         self.P_ij += self.A
         self.previous_A = self.A
-        tau = 1/(1000* (self.N*(self.N-1)/2)) * (self.P_ij/self.Q_ij).sum()
+        tau = 1/((s+1e-15)*(self.N*(self.N-1))) * (self.P_ij/self.Q_ij).sum()
         
         return hamilton, edge, energy, giant, tau
 
     # ---------------------------------------------------------------------------------------
     def Animation(self, camera, episode):
         options = { 'node_size': 60, 'width': 1.5 }
-        
+
         G = nx.from_numpy_array(self.A)
         for i in range(self.N):
             G.add_node(i, pos=(self.Agents[i].x, self.Agents[i].y))
+            # if not (i in (list((sorted(nx.connected_components(G), key=len, reverse=True))[0]))): 
+            plt.gca().add_artist(plt.Circle((self.Agents[i].x, self.Agents[i].y), radius=self.Agents[i].r, color=(0.1,0.2,0.6,0.2)))
         pos = nx.get_node_attributes(G,'pos')
         
-        nx.draw_networkx(G, pos, with_labels=False, **options)
+        nx.draw_networkx(G, pos, with_labels=True, **options)
         
         plt.text(self.L-0.15*self.L, self.L+0.3, f'Episode {episode}', fontname='Comic Sans MS', fontsize=12)
         plt.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)

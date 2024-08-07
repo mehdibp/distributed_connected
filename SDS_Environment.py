@@ -67,6 +67,7 @@ class Distributed_System():
                     rho[i] += 1
                     rho[j] += 1
                 if rho[i] > 8: rho[i] = 8       ### should debug in training
+                rho[i] = self.N/(self.L**2)
 
         if self.moving == True: self.Movement()
         return ([ self.k+1, self.r+1, rho+1 ], -_reward) 

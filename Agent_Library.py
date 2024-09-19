@@ -1,3 +1,4 @@
+from tabnanny import verbose
 import numpy as np
 import matplotlib.pyplot as plt
 from celluloid import Camera
@@ -10,7 +11,7 @@ import tensorflow as tf
 # -------------------------------------------------------------------------------------------
 class Distributed_Agent():
     # ---------------------------------------------------------------------------------------
-    def __init__(self, L, flipping=False, moving=False, training=False):
+    def __init__(self, L, flipping=False, requesting=False, moving=False, training=False):
         self.L = L
         
         # Variables: x , y (positions of agent in plan)
@@ -28,19 +29,24 @@ class Distributed_Agent():
 
         self.replay_memory = deque(maxlen=40)   # A bag for 40 recently viewed (state, action, reward, next_state)
 
-        self.training = training
-        self.flipping = flipping
-        self.moving   = moving
+        self.training   = training
+        self.flipping   = flipping
+        self.requesting = requesting
+        self.moving     = moving
         self.radian = (np.random.randint(360) -180)/180*np.pi    # The angle towards which the agent moves more
         self.trainCounter = 0
 
+    # @tf.function
+    # def predict(self, state): return self.model(np.array([[1,1,2]]))
 
     # ---------------------------------------------------------------------------------------    
-    def Prediction(self, state, OtherAgents):
+    def Prediction(self, OtherAgents):
         self.N = len(OtherAgents) + 1
         self.OtherAgents = OtherAgents
 
-        action = np.argmax( self.model.predict(np.reshape(state, (3)).reshape(1, -1), verbose=0)[0] )
+        state = self.MyState()
+        # action = np.argmax( self.model.predict( np.array([state]), verbose=0)[0])
+        action = np.argmax( self.model( np.array([state])).numpy()[0] )
         next_state, reward = self.step((action-0.5)*2)
 
         self.replay_memory.append((state, action, reward, next_state))
@@ -48,39 +54,42 @@ class Distributed_Agent():
         if self.training == True and self.trainCounter%10 == 0: self.Train(batch_size=32, discount_rate=0.98)
         self.trainCounter += 1
 
-        return next_state
-
     # ---------------------------------------------------------------------------------------    
-    def step(self, action):
-
-        Hamilton_t0 = self.Hamiltonian()
-
-        delta_r = action* (0.16*self.L**2/self.N) *np.random.random()
-        self.r += delta_r
-        
+    def MyState(self):
         self.k = 0
         rho    = 0
-        
-
-        if self.r < 0:             self.r = 0
-        if self.r > 2**0.5*self.L: self.r = 2**0.5*self.L
         for i in range(self.N-1):
             distance = ( (self.x - self.OtherAgents[i].x)**2 + (self.y-self.OtherAgents[i].y)**2 )**0.5
             if distance <= self.r and distance <= self.OtherAgents[i].r:
                 self.k += 1 
             
             if distance <= 1.6: rho += 1
-            if rho >  8: rho = 8                    ### should debug in training
-            if rho == 0: rho = self.N / self.L**2
+        if rho >  8: rho = 8                    ### should debug in training
+        if rho == 0: rho = self.N / self.L**2
+
+        return([ self.k+1, self.r+1, rho+1 ])
+
+    # ---------------------------------------------------------------------------------------    
+    def step(self, action):
+
+        Hamilton_t0 = self.Hamiltonian()
+
+        delta_r = action* np.sqrt(self.L**2/self.N)/4 *np.random.random()
+        self.r += delta_r
+        if self.r < 0:             self.r = 0
+        if self.r > 2**0.5*self.L: self.r = 2**0.5*self.L
+        
+        _, _, rho = self.MyState()
 
 
         Hamilton_t1 = self.Hamiltonian()
         _reward = Hamilton_t1 - Hamilton_t0
 
+        if self.requesting == True: self.SendRequest()
         if self.flipping == True: self.Flip_redius(delta_r, _reward)
         if self.moving   == True: self.Movement()
 
-        return ([ self.k+1, self.r+1, rho+1 ], -_reward) 
+        return ([ self.k+1, self.r+1, rho ], -_reward) 
 
     # ---------------------------------------------------------------------------------------    
     def Hamiltonian(self):
@@ -123,7 +132,8 @@ class Distributed_Agent():
                 requested.append([ distance, delta_H ])
 
                 ArgMinimum = np.argmin(np.array(requested)[:,1])
-                if np.exp(-requested[ArgMinimum][1] / 4) > np.random.random():
+                if np.exp(-requested[ArgMinimum][1] * 4) > np.random.random():
+                # if requested[ArgMinimum][1] < 0:
                     self.r = requested[ArgMinimum][0]
 
     # --------------------------------------------------------------------------------------- 
@@ -230,6 +240,9 @@ class Plot_Environment():
         # -------------------------------------------------------------------------
         energy = 0
         for i in range(self.N): energy += 0.2*self.Agents[i].r**2
+        # -------------------------------------------------------------------------
+        average_r = 0
+        for i in range(self.N): average_r += self.Agents[i].r / self.N
         
         # Giant component of network (%) ------------------------------------------
         G = nx.from_numpy_array(self.A)
@@ -246,7 +259,7 @@ class Plot_Environment():
         self.previous_A = self.A
         tau = 1/((s+1e-15)*(self.N*(self.N-1))) * (self.P_ij/self.Q_ij).sum()
         
-        return hamilton, edge, energy, giant, tau
+        return hamilton, edge, energy, average_r, giant, tau
 
     # ---------------------------------------------------------------------------------------
     def Animation(self, camera, episode):
@@ -255,8 +268,8 @@ class Plot_Environment():
         G = nx.from_numpy_array(self.A)
         for i in range(self.N):
             G.add_node(i, pos=(self.Agents[i].x, self.Agents[i].y))
-            # if not (i in (list((sorted(nx.connected_components(G), key=len, reverse=True))[0]))): 
-            plt.gca().add_artist(plt.Circle((self.Agents[i].x, self.Agents[i].y), radius=self.Agents[i].r, color=(0.1,0.2,0.6,0.2)))
+            if not (i in (list((sorted(nx.connected_components(G), key=len, reverse=True))[0]))): 
+                plt.gca().add_artist(plt.Circle((self.Agents[i].x, self.Agents[i].y), radius=self.Agents[i].r, color=(0.4,0.2,0.5,0.2)))
         pos = nx.get_node_attributes(G,'pos')
         
         nx.draw_networkx(G, pos, with_labels=True, **options)

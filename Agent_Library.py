@@ -1,6 +1,6 @@
-from tabnanny import verbose
 import numpy as np
 import matplotlib.pyplot as plt
+import random
 from celluloid import Camera
 import networkx as nx
 from collections import deque
@@ -11,9 +11,10 @@ import tensorflow as tf
 # -------------------------------------------------------------------------------------------
 class Distributed_Agent():
     # ---------------------------------------------------------------------------------------
-    def __init__(self, L, flipping=False, requesting=False, moving=False, training=False):
+    def __init__(self, N, L, flipping=False, requesting=False, moving=False, training=False):
         self.L = L
-        
+        self.N = N
+
         # Variables: x , y (positions of agent in plan)
         self.x = np.random.rand()*L           # Initialize xᵢ
         self.y = np.random.rand()*L           # Initialize yᵢ
@@ -34,24 +35,23 @@ class Distributed_Agent():
         self.requesting = requesting
         self.moving     = moving
         self.radian = (np.random.randint(360) -180)/180*np.pi    # The angle towards which the agent moves more
-        self.trainCounter = 0
+        self.trainCounter = 1
 
-    # @tf.function
-    # def predict(self, state): return self.model(np.array([[1,1,2]]))
 
     # ---------------------------------------------------------------------------------------    
     def Prediction(self, OtherAgents):
         self.N = len(OtherAgents) + 1
         self.OtherAgents = OtherAgents
 
-        state = self.MyState()
-        # action = np.argmax( self.model.predict( np.array([state]), verbose=0)[0])
+        state  = [s+1 for s in self.MyState()]
         action = np.argmax( self.model( np.array([state])).numpy()[0] )
-        next_state, reward = self.step((action-0.5)*2)
+        STEP   = self.step((action-0.5)*2)
+        reward = STEP[1]
+        next_state = [ns+1 for ns in STEP[0]]
 
         self.replay_memory.append((state, action, reward, next_state))
 
-        if self.training == True and self.trainCounter%10 == 0: self.Train(batch_size=32, discount_rate=0.98)
+        if self.training == True and self.trainCounter%10 == 0: self.Train(batch_size=20, discount_rate=0.98)
         self.trainCounter += 1
 
     # ---------------------------------------------------------------------------------------    
@@ -67,11 +67,12 @@ class Distributed_Agent():
         if rho >  8: rho = 8                    ### should debug in training
         if rho == 0: rho = self.N / self.L**2
 
-        return([ self.k+1, self.r+1, rho+1 ])
+        return([ self.k, self.r, rho ])
 
     # ---------------------------------------------------------------------------------------    
     def step(self, action):
 
+        if self.k == 0 and action == -1: action = 0.1
         Hamilton_t0 = self.Hamiltonian()
 
         delta_r = action* np.sqrt(self.L**2/self.N)/4 *np.random.random()
@@ -86,10 +87,10 @@ class Distributed_Agent():
         _reward = Hamilton_t1 - Hamilton_t0
 
         if self.requesting == True: self.SendRequest()
-        if self.flipping == True: self.Flip_redius(delta_r, _reward)
-        if self.moving   == True: self.Movement()
+        if self.flipping   == True: self.Flip_redius(delta_r, _reward)
+        if self.moving     == True: self.Movement()
 
-        return ([ self.k+1, self.r+1, rho ], -_reward) 
+        return ([ self.k, self.r, rho ], -_reward) 
 
     # ---------------------------------------------------------------------------------------    
     def Hamiltonian(self):
@@ -138,14 +139,14 @@ class Distributed_Agent():
 
     # --------------------------------------------------------------------------------------- 
     def Movement(self):
-        Rho = 0.01*(self.L**2/self.N)
+        Rho = 0.02*(self.L**2/self.N)
 
         # Assume a non-Markovian behavior for each particle and move according to it
-        if np.random.random() < 0.6: self.x += Rho/2*np.cos(self.radian)
-        else: self.x += Rho*(np.random.random() -0.5)
+        if random.random() < 0.6: self.x += Rho/2*np.cos(self.radian)
+        else: self.x += Rho*(random.random() -0.5)
 
-        if np.random.random() < 0.6: self.y += Rho/2*np.sin(self.radian)
-        else: self.y += Rho*(np.random.random() -0.5) 
+        if random.random() < 0.6: self.y += Rho/2*np.sin(self.radian)
+        else: self.y += Rho*(random.random() -0.5) 
 
         # Reflective boundary condition
         if (self.x > self.L) or (self.x < 0): 
@@ -156,14 +157,14 @@ class Distributed_Agent():
             self.y = 0+Rho if abs(self.y) < abs(self.y-self.L) else self.L-Rho
 
     # ---------------------------------------------------------------------------------------
-    def Train(self, batch_size=32, discount_rate=0.98):
-        optimizer = tf.keras.optimizers.legacy.Adam(learning_rate=1e-2)
+    def Train(self, batch_size=32, discount_rate=0.98, learning_rate=1e-3):
+        optimizer = tf.keras.optimizers.legacy.Adam(learning_rate = learning_rate)
         loss_fn   = tf.keras.losses.mean_squared_error
         
-        indices = np.random.randint(len(self.replay_memory), size=batch_size)   # 32ta random number between[0 - len(replay)]
+        indices = np.random.randint(len(self.replay_memory), size=batch_size)   # 32 random number between[0 - len(replay)]
         batch   = [self.replay_memory[index] for index in indices]              # number in replay_memory[indices]
         
-        states, actions, rewards, next_states = [                             # from replay_memory read these and save in...
+        states, actions, rewards, next_states = [                               # from replay_memory read these and save in...
             np.array([experience[field_index] for experience in batch])
             for field_index in range(4)]
         
@@ -172,7 +173,7 @@ class Distributed_Agent():
             if rewards[j] < 0.05 and rewards[j] > -0.1: rewards[j] = 0.
             else: rewards[j] = round(rewards[j], ndigits=3)
                 
-        next_Q_values   = self.model.predict(next_states, verbose=0)    # 32 predict of 2 actions
+        next_Q_values   = self.model(next_states)                       # 32 predict of 2 actions
         max_next_Q_values = np.max(next_Q_values, axis=1)               # choose higher probiblity of each actions (of each 32)
         target_Q_values = rewards + discount_rate*max_next_Q_values     # Equation 18-5. Q-Learning algorithm
         target_Q_values = target_Q_values.reshape(-1, 1)                # reshape to (32,1) beacuse of Q_values.shape
@@ -281,7 +282,7 @@ class Plot_Environment():
         camera.snap()
     
     # ---------------------------------------------------------------------------------------
-    def Static_Plot(self, episode, Hamilton, Edges, Energy, Giant, Tau):
+    def Static_Plot(self, episode, Hamilton, Edges, Energy, R_avg, Giant, Tau):
         plt.figure(figsize=(16,12))
 
         plt.subplot(2,2,1)
@@ -298,7 +299,7 @@ class Plot_Environment():
 
         plt.subplot(2,2,3)
         plt.title("Transition Range")
-        plt.plot(Energy)
+        plt.plot(R_avg)
         plt.grid(alpha=0.3) 
 
         plt.subplot(2,2,4)

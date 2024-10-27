@@ -171,8 +171,12 @@ cython_debug/
 /other example
 /py
 /All result
+/datas
 
-log.xlsx
-~$log.xlsx
+Agents - tests.ipynb
+
+SDS_Environment.py
+SDS-Classification.ipynb
+SDS-Learned.ipynb
 
 

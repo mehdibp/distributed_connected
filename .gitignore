@@ -166,17 +166,19 @@ cython_debug/
 /.vscode
 
 
+
 # My folders!!!
-/images
-/other example
 /py
-/All result
-/datas
+/All Results
+/Datas
+/SDS
+/Different Model Training
+
+Saved Model/* 
+!exported_model
+!Saved Model/SevedModel tf=2-10.keras
+!Saved Model/SevedModel tf=2-15.keras
+!Saved Model/SevedModel tf=2-18.keras
 
 Agents - tests.ipynb
-
-SDS_Environment.py
-SDS-Classification.ipynb
-SDS-Learned.ipynb
-
 

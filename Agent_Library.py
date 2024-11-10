@@ -11,7 +11,7 @@ import tensorflow as tf
 # -------------------------------------------------------------------------------------------
 class Distributed_Agent():
     # ---------------------------------------------------------------------------------------
-    def __init__(self, N, L, flipping=False, requesting=False, moving=False, training=False):
+    def __init__(self, N, L, Alphas=[-0.5,0.1,0.2,-0.5], requesting=False, moving=False, training=False):
         self.L = L
         self.N = N
 
@@ -19,10 +19,12 @@ class Distributed_Agent():
         self.x = np.random.rand()*L           # Initialize xᵢ
         self.y = np.random.rand()*L           # Initialize yᵢ
 
+        self.alpha_1, self.alpha_2, self.alpha_3, self.alpha_4, = Alphas
+
         # build model
         tf.keras.backend.clear_session()
-        self.model = tf.keras.models.load_model('100agent.keras', 
-                        custom_objects={'custom_activation': tf.keras.layers.Activation(self.custom_activation)}, 
+        self.model = tf.keras.models.load_model('./All Results/Different Model Training/models with alpha4 = -1000/L=45/model_H_best_weight.keras',
+                        custom_objects={'custom_activation': tf.keras.layers.Activation(self.custom_activation)},   
                         compile=False)
         
         self.r = 1.                   # Transition reange
@@ -31,11 +33,12 @@ class Distributed_Agent():
         self.replay_memory = deque(maxlen=40)   # A bag for 40 recently viewed (state, action, reward, next_state)
 
         self.training   = training
-        self.flipping   = flipping
         self.requesting = requesting
         self.moving     = moving
         self.radian = (np.random.randint(360) -180)/180*np.pi    # The angle towards which the agent moves more
         self.trainCounter = 1
+
+        self.loss = tf.constant(0.)   # Just for print and plot loss per step
 
 
     # ---------------------------------------------------------------------------------------    
@@ -51,7 +54,7 @@ class Distributed_Agent():
 
         self.replay_memory.append((state, action, reward, next_state))
 
-        if self.training == True and self.trainCounter%10 == 0: self.Train(batch_size=20, discount_rate=0.98)
+        if self.training == True and self.trainCounter%10 == 0: self.Train(batch_size=20, discount_rate=0.98, learning_rate=1e-5)
         self.trainCounter += 1
 
     # ---------------------------------------------------------------------------------------    
@@ -86,18 +89,14 @@ class Distributed_Agent():
         Hamilton_t1 = self.Hamiltonian()
         _reward = Hamilton_t1 - Hamilton_t0
 
+        self.Flip_redius(delta_r, _reward)
         if self.requesting == True: self.SendRequest()
-        if self.flipping   == True: self.Flip_redius(delta_r, _reward)
         if self.moving     == True: self.Movement()
 
         return ([ self.k, self.r, rho ], -_reward) 
 
     # ---------------------------------------------------------------------------------------    
     def Hamiltonian(self):
-        alfa_1 = -0.5
-        alfa_2 = +0.1
-        alfa_3 = +0.2
-        alfa_4 = -0.5
         
         fourth = 0
         for i in range(self.N-1):
@@ -105,7 +104,7 @@ class Distributed_Agent():
             if distance <= self.r and distance <= self.OtherAgents[i].r:
                 fourth += 1/distance
             
-        H = alfa_1*self.k**2 + alfa_2*self.k**3 + alfa_3*self.r**2 + alfa_4*fourth
+        H = self.alpha_1*self.k**2 + self.alpha_2*self.k**3 + self.alpha_3*self.r**2 + self.alpha_4*fourth
         return H
     
     # ---------------------------------------------------------------------------------------    
@@ -120,16 +119,12 @@ class Distributed_Agent():
 
     # ---------------------------------------------------------------------------------------
     def SendRequest(self):
-        alfa_1 = -0.5
-        alfa_2 = +0.1
-        alfa_3 = +0.2
-        alfa_4 = -0.5
 
         requested = []
         for i in range(self.N-1):
             distance = ( (self.x - self.OtherAgents[i].x)**2 + (self.y-self.OtherAgents[i].y)**2 )**0.5
             if distance > self.r and distance <= self.OtherAgents[i].r:
-                delta_H = alfa_1*((self.k+1)**2 - self.k**2) + alfa_2*((self.k+1)**3 - self.k**3) + alfa_3*(distance**2 - self.r**2) - alfa_4*(1/distance)
+                delta_H = self.alpha_1*((self.k+1)**2 - self.k**2) + self.alpha_2*((self.k+1)**3 - self.k**3) + self.alpha_3*(distance**2 - self.r**2) - self.alpha_4*(1/distance)
                 requested.append([ distance, delta_H ])
 
                 ArgMinimum = np.argmin(np.array(requested)[:,1])
@@ -158,8 +153,8 @@ class Distributed_Agent():
 
     # ---------------------------------------------------------------------------------------
     def Train(self, batch_size=32, discount_rate=0.98, learning_rate=1e-3):
-        optimizer = tf.keras.optimizers.legacy.Adam(learning_rate = learning_rate)
-        loss_fn   = tf.keras.losses.mean_squared_error
+        optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate, clipnorm=1.0)
+        loss_fn   = tf.keras.losses.mse
         
         indices = np.random.randint(len(self.replay_memory), size=batch_size)   # 32 random number between[0 - len(replay)]
         batch   = [self.replay_memory[index] for index in indices]              # number in replay_memory[indices]
@@ -182,13 +177,13 @@ class Distributed_Agent():
         mask = tf.one_hot(actions, 2)
         with tf.GradientTape() as tape:
             all_Q_values = self.model(states)
-            Q_values = tf.reduce_sum(all_Q_values*mask, axis=1, keepdims=True)
-            loss = tf.reduce_mean(loss_fn(target_Q_values, Q_values))
-        grads = tape.gradient(loss, self.model.trainable_variables)
+            Q_values  = tf.reduce_sum(all_Q_values*mask, axis=1, keepdims=True)
+            self.loss = tf.reduce_mean(loss_fn(target_Q_values, Q_values))
+        grads = tape.gradient(self.loss, self.model.trainable_variables)
 
         nan = 0
         for g in grads:
-            if np.isnan(g.numpy().ravel().any()): nan = 1
+            if np.isnan(g.numpy().ravel()).any(): nan = 1
         if nan != 1: optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
         
     # ---------------------------------------------------------------------------------------

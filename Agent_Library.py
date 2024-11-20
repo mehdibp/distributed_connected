@@ -1,8 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import random
-from celluloid import Camera
 import networkx as nx
+from celluloid   import Camera
 from collections import deque
 
 import tensorflow as tf
@@ -11,34 +11,31 @@ import tensorflow as tf
 # -------------------------------------------------------------------------------------------
 class Distributed_Agent():
     # ---------------------------------------------------------------------------------------
-    def __init__(self, N, L, Alphas=[-0.5,0.1,0.2,-0.5], requesting=False, moving=False, training=False):
-        self.L = L
-        self.N = N
+    def __init__(self, Parameters, Functions, model_path):
 
-        # Variables: x , y (positions of agent in plan)
-        self.x = np.random.rand()*L           # Initialize xᵢ
-        self.y = np.random.rand()*L           # Initialize yᵢ
+        # Enable or disable different functions (different features) ------------------------
+        self.requesting, self.moving, self.training = Functions
 
+        # Agent parameters ------------------------------------------------------------------
+        [self.N, self.L, Alphas, self.learning_rate, self.discount_rate, self.batch_size, self.steps_per_train] = Parameters
         self.alpha_1, self.alpha_2, self.alpha_3, self.alpha_4, = Alphas
 
-        # build model
+        self.x = np.random.rand()*self.L           # Initialize xᵢ (positions of agent in plan)
+        self.y = np.random.rand()*self.L           # Initialize yᵢ (positions of agent in plan)
+
+
+        # Build model -----------------------------------------------------------------------
         tf.keras.backend.clear_session()
-        self.model = tf.keras.models.load_model('./All Results/Different Model Training/models with alpha4 = -1000/L=45/model_H_best_weight.keras',
-                        custom_objects={'custom_activation': tf.keras.layers.Activation(self.custom_activation)},   
-                        compile=False)
+        custom_activation = {'custom_activation': tf.keras.layers.Activation(self.custom_activation)}
+        self.model = tf.keras.models.load_model(model_path, custom_objects=custom_activation, compile=False)
         
         self.r = 1.                   # Transition reange
         self.k = 0                    # Degree of a vertex (Number of conections)
 
-        self.replay_memory = deque(maxlen=40)   # A bag for 40 recently viewed (state, action, reward, next_state)
-
-        self.training   = training
-        self.requesting = requesting
-        self.moving     = moving
-        self.radian = (np.random.randint(360) -180)/180*np.pi    # The angle towards which the agent moves more
-        self.trainCounter = 1
-
-        self.loss = tf.constant(0.)   # Just for print and plot loss per step
+        self.replay_memory = deque(maxlen=40)   # A bag for 40 recently viewed (state, action, reward, next_state)        
+        self.radian = (np.random.randint(360) -180)/180*np.pi   # The angle towards which the agent moves more
+        self.trainCounter = 1                                   # Just to set the train to run every few steps
+        self.loss = tf.constant(0.)                             # Just for print and plot loss per step
 
 
     # ---------------------------------------------------------------------------------------    
@@ -54,7 +51,7 @@ class Distributed_Agent():
 
         self.replay_memory.append((state, action, reward, next_state))
 
-        if self.training == True and self.trainCounter%10 == 0: self.Train(batch_size=20, discount_rate=0.98, learning_rate=1e-5)
+        if self.training and self.trainCounter%self.steps_per_train == 0: self.Train()
         self.trainCounter += 1
 
     # ---------------------------------------------------------------------------------------    
@@ -90,8 +87,8 @@ class Distributed_Agent():
         _reward = Hamilton_t1 - Hamilton_t0
 
         self.Flip_redius(delta_r, _reward)
-        if self.requesting == True: self.SendRequest()
-        if self.moving     == True: self.Movement()
+        if self.requesting: self.SendRequest()
+        if self.moving    : self.Movement()
 
         return ([ self.k, self.r, rho ], -_reward) 
 
@@ -152,11 +149,11 @@ class Distributed_Agent():
             self.y = 0+Rho if abs(self.y) < abs(self.y-self.L) else self.L-Rho
 
     # ---------------------------------------------------------------------------------------
-    def Train(self, batch_size=32, discount_rate=0.98, learning_rate=1e-3):
-        optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate, clipnorm=1.0)
+    def Train(self):
+        optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate, clipnorm=1.0)
         loss_fn   = tf.keras.losses.mse
         
-        indices = np.random.randint(len(self.replay_memory), size=batch_size)   # 32 random number between[0 - len(replay)]
+        indices = np.random.randint(len(self.replay_memory), size=self.batch_size)   # 32 random number between[0 - len(replay)]
         batch   = [self.replay_memory[index] for index in indices]              # number in replay_memory[indices]
         
         states, actions, rewards, next_states = [                               # from replay_memory read these and save in...
@@ -170,7 +167,7 @@ class Distributed_Agent():
                 
         next_Q_values   = self.model(next_states)                       # 32 predict of 2 actions
         max_next_Q_values = np.max(next_Q_values, axis=1)               # choose higher probiblity of each actions (of each 32)
-        target_Q_values = rewards + discount_rate*max_next_Q_values     # Equation 18-5. Q-Learning algorithm
+        target_Q_values = rewards + self.discount_rate*max_next_Q_values     # Equation 18-5. Q-Learning algorithm
         target_Q_values = target_Q_values.reshape(-1, 1)                # reshape to (32,1) beacuse of Q_values.shape
         
         
@@ -185,13 +182,13 @@ class Distributed_Agent():
         for g in grads:
             if np.isnan(g.numpy().ravel()).any(): nan = 1
         if nan != 1: optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
-        
+
     # ---------------------------------------------------------------------------------------
     def custom_activation(self, x):
         xx = (tf.keras.backend.softplus(x))**0.5
         return -tf.keras.backend.elu(-xx + 100) + 100
         
-       
+
 
 
 # -------------------------------------------------------------------------------------------
@@ -223,6 +220,33 @@ class Plot_Environment():
                     self.A[i][j] = self.A[j][i] = 1
                     self.k[i]   += 1
                     self.k[j]   += 1
+
+    # ---------------------------------------------------------------------------------------
+    def Env_Plot(self, step):
+        fig, ax = plt.subplots(figsize=(14,14)) 
+
+        plt.text(0.9*self.L, 1.03*self.L, f'Episode {step}', fontname='Comic Sans MS', fontsize=12)
+        plt.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)
+        plt.xlim([-0.02*self.L, 1.02*self.L])
+        plt.ylim([-0.02*self.L, 1.02*self.L])
+        plt.grid(alpha = 0.3)
+
+    # ---------------------------------------------------------------------------------------
+    def Animation(self, camera, step):
+        self.Env_Plot(step)
+
+        options = { 'node_size': 60, 'width': 1.5, 'node_color': (0.5,0.0,0.8,1) }
+        G = nx.from_numpy_array(self.A)
+        for i in range(self.N):
+            G.add_node(i, pos=(self.Agents[i].x, self.Agents[i].y))
+            if not (i in (list((sorted(nx.connected_components(G), key=len, reverse=True))[0]))): 
+                plt.gca().add_artist(plt.Circle((self.Agents[i].x, self.Agents[i].y), radius=self.Agents[i].r, color='#66338033'))
+
+        pos = nx.get_node_attributes(G,'pos')
+        nx.draw_networkx(G, pos, with_labels=True, **options)
+
+        plt.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)
+        camera.snap()
     
     # ---------------------------------------------------------------------------------------
     def Calculate_Result(self, Agents, s):
@@ -256,53 +280,6 @@ class Plot_Environment():
         tau = 1/((s+1e-15)*(self.N*(self.N-1))) * (self.P_ij/self.Q_ij).sum()
         
         return hamilton, edge, energy, average_r, giant, tau
-
-    # ---------------------------------------------------------------------------------------
-    def Animation(self, camera, episode):
-        options = { 'node_size': 60, 'width': 1.5 }
-
-        G = nx.from_numpy_array(self.A)
-        for i in range(self.N):
-            G.add_node(i, pos=(self.Agents[i].x, self.Agents[i].y))
-            if not (i in (list((sorted(nx.connected_components(G), key=len, reverse=True))[0]))): 
-                plt.gca().add_artist(plt.Circle((self.Agents[i].x, self.Agents[i].y), radius=self.Agents[i].r, color=(0.4,0.2,0.5,0.2)))
-        pos = nx.get_node_attributes(G,'pos')
-        
-        nx.draw_networkx(G, pos, with_labels=True, **options)
-        
-        plt.text(self.L-0.15*self.L, self.L+0.3, f'Episode {episode}', fontname='Comic Sans MS', fontsize=12)
-        plt.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)
-        plt.xlim(-0.1, self.L+0.1); plt.ylim(-0.1, self.L+0.1)
-        plt.grid(alpha = 0.3)
-        camera.snap()
-    
-    # ---------------------------------------------------------------------------------------
-    def Static_Plot(self, episode, Hamilton, Edges, Energy, R_avg, Giant, Tau):
-        plt.figure(figsize=(16,12))
-
-        plt.subplot(2,2,1)
-        plt.title("Hamilton")
-        plt.plot(Hamilton)
-        plt.text(0.7*episode, 1.1*max(Hamilton), "Min(H): %f" % (min(Hamilton)) )
-        plt.text(0.7*episode, 1.2*max(Hamilton), "Arg(H): %f" % (np.argmin(Hamilton)) )
-        plt.grid(alpha=0.3)
-
-        plt.subplot(2,2,2)
-        plt.title("Giant Component")
-        plt.plot(Giant)
-        plt.grid(alpha=0.3)
-
-        plt.subplot(2,2,3)
-        plt.title("Transition Range")
-        plt.plot(R_avg)
-        plt.grid(alpha=0.3) 
-
-        plt.subplot(2,2,4)
-        plt.title("Tau")
-        plt.plot(Tau)
-        plt.grid(alpha=0.3) 
-
-        plt.show()
 
 
 

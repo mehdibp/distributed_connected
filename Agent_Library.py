@@ -1,9 +1,12 @@
-import numpy as np
-import matplotlib.pyplot as plt
 import random
+import numpy as np
 import networkx as nx
 from celluloid   import Camera
 from collections import deque
+
+import matplotlib.pyplot as plt
+from matplotlib.path import Path
+from matplotlib.transforms import Bbox
 
 import tensorflow as tf
 
@@ -11,7 +14,9 @@ import tensorflow as tf
 # -------------------------------------------------------------------------------------------
 class Distributed_Agent():
     # ---------------------------------------------------------------------------------------
-    def __init__(self, Parameters, Functions, model_path):
+    def __init__(self, environment, Parameters, Functions, model_path):
+
+        self.environment = environment
 
         # Enable or disable different functions (different features) ------------------------
         self.requesting, self.moving, self.training = Functions
@@ -20,8 +25,8 @@ class Distributed_Agent():
         [self.N, self.L, Alphas, self.learning_rate, self.discount_rate, self.batch_size, self.steps_per_train] = Parameters
         self.alpha_1, self.alpha_2, self.alpha_3, self.alpha_4, = Alphas
 
-        self.x = np.random.rand()*self.L           # Initialize xᵢ (positions of agent in plan)
-        self.y = np.random.rand()*self.L           # Initialize yᵢ (positions of agent in plan)
+        # Initialize xᵢ, yᵢ (positions of agent in plan) ------------------------------------
+        self.init_position()
 
 
         # Build model -----------------------------------------------------------------------
@@ -37,6 +42,23 @@ class Distributed_Agent():
         self.trainCounter = 1                                   # Just to set the train to run every few steps
         self.loss = tf.constant(0.)                             # Just for print and plot loss per step
 
+
+    # ---------------------------------------------------------------------------------------    
+    def init_position(self):
+        self.x = np.random.rand()*self.L           # Initialize xᵢ (positions of agent in plan)
+        self.y = np.random.rand()*self.L           # Initialize yᵢ (positions of agent in plan)
+
+        j = 0
+        while j < len(self.environment.buildings):
+            build = self.environment.buildings[j]
+            if (self.x >= build[0] and self.x <= (build[0] + build[2]) and 
+                self.y >= build[1] and self.y <= (build[1] + build[3])):
+
+                self.x = np.random.rand()*self.L
+                self.y = np.random.rand()*self.L
+
+                j=0
+            else: j += 1
 
     # ---------------------------------------------------------------------------------------    
     def Prediction(self, OtherAgents):
@@ -61,9 +83,15 @@ class Distributed_Agent():
         for i in range(self.N-1):
             distance = ( (self.x - self.OtherAgents[i].x)**2 + (self.y-self.OtherAgents[i].y)**2 )**0.5
             if distance <= self.r and distance <= self.OtherAgents[i].r:
-                self.k += 1 
+                intersect = self.environment.do_intersect([(self.x, self.y), (self.OtherAgents[i].x, self.OtherAgents[i].y)])
+                if not intersect or (distance <= 0.5*self.r and distance <= 0.5*self.OtherAgents[i].r):
+                    self.k += 1 
             
-            if distance <= 1.6: rho += 1
+            
+            if distance <= 1.6:                 ### should debug it
+                intersect = self.environment.do_intersect([(self.x, self.y), (self.OtherAgents[i].x, self.OtherAgents[i].y)])
+                if not intersect or distance <= 0.8: 
+                    rho += 1
         if rho >  8: rho = 8                    ### should debug in training
         if rho == 0: rho = self.N / self.L**2
 
@@ -133,6 +161,8 @@ class Distributed_Agent():
     def Movement(self):
         Rho = 0.02*(self.L**2/self.N)
 
+        x_p, y_p = self.x, self.y                   # Save previous agent location
+
         # Assume a non-Markovian behavior for each particle and move according to it
         if random.random() < 0.6: self.x += Rho/2*np.cos(self.radian)
         else: self.x += Rho*(random.random() -0.5)
@@ -140,13 +170,9 @@ class Distributed_Agent():
         if random.random() < 0.6: self.y += Rho/2*np.sin(self.radian)
         else: self.y += Rho*(random.random() -0.5) 
 
-        # Reflective boundary condition
-        if (self.x > self.L) or (self.x < 0): 
-            self.radian = np.pi-self.radian if self.radian > 0 else -np.pi-self.radian
-            self.x = 0+Rho if abs(self.x) < abs(self.x-self.L) else self.L-Rho
-        if (self.y > self.L) or (self.y < 0): 
-            self.radian = -self.radian
-            self.y = 0+Rho if abs(self.y) < abs(self.y-self.L) else self.L-Rho
+        # Reflective boundary condition -------------------------------------------------
+        self.x, self.y, self.radian = self.environment.BoundaryCondition((self.x, self.y), self.radian, Rho)
+        self.x, self.y, self.radian = self.environment.BuildingsBoundary((self.x, self.y), (x_p, y_p), self.radian, Rho)
 
     # ---------------------------------------------------------------------------------------
     def Train(self):
@@ -192,10 +218,107 @@ class Distributed_Agent():
 
 
 # -------------------------------------------------------------------------------------------
+class Environment():
+    # ---------------------------------------------------------------------------------------
+    def __init__(self, ENV_Parameters):
+        self.L, buildings_type, num_buildings, num_streets = ENV_Parameters
+
+        self.buildings = []
+        self.build_bounds = []
+        # self.border = np.array([[-L, 0, L, L], [0, -L, L, L], [ L, 0, L, L], [ 0, L, L, L]])
+
+        if buildings_type == "random" : self.RandomBuilding (num_buildings)
+        if buildings_type == "regular": self.RegularBuilding(num_streets)
+
+    # ---------------------------------------------------------------------------------------
+    def BoundaryCondition(self, agent_pos, radian, Rho):
+        x, y = agent_pos
+        if (x > self.L) or (x < 0): 
+            radian = np.pi-radian if radian > 0 else -np.pi-radian
+            x = Rho if x < 0 else self.L-Rho
+        if (y > self.L) or (y < 0): 
+            radian = -radian
+            y = Rho if y < 0 else self.L-Rho
+        
+        return x, y, radian
+   
+    # ---------------------------------------------------------------------------------------
+    def RandomBuilding(self, num_buildings):
+        while len(self.buildings) < num_buildings:
+            x, y          = np.random.randint(self.L   , size=2)
+            # width, height = np.random.randint(self.L/15, size=2) + 1
+            width, height = np.random.randint(2     , size=2) + self.L/15
+
+            No_intersection = True
+            for b in self.buildings:
+                if not (x+width <= b[0] or x >= b[0]+b[2] or y+height <= b[1] or y >= b[1]+b[3]): No_intersection = False
+            if No_intersection: 
+                self.buildings   .append(np.array([x, y, width, height]))
+                self.build_bounds.append(Bbox.from_bounds(x, y, width, height))
+    
+    # ---------------------------------------------------------------------------------------
+    def RegularBuilding(self, num_streets):
+        Ns_Vertical   = int(np.ceil (num_streets/2))
+        Ns_Horizontal = int(np.floor(num_streets/2))
+
+        Ls_Vertical   = self.L / (4*Ns_Vertical-1)
+        Ls_Horizontal = self.L / (3*Ns_Horizontal)
+
+        for v in range(Ns_Vertical+1):
+            for h in range(Ns_Horizontal+1):
+
+                x = (4*v-2)*Ls_Vertical
+                y = (3*h-1)*Ls_Horizontal
+                width  = 3*Ls_Vertical
+                height = 2*Ls_Horizontal
+
+                self.buildings.append(np.array([x, y, width, height]))
+                self.build_bounds.append(Bbox.from_bounds(x, y, width, height))
+
+    # ---------------------------------------------------------------------------------------
+    def do_intersect(self, agents):
+        agents = Path(agents)
+        for build in self.build_bounds:
+            if agents.intersects_bbox(build): return True
+        return False
+
+    # ---------------------------------------------------------------------------------------
+    def BuildingsBoundary(self, agent_pos, agent_previous_pos, radian, Rho):
+        x, y     = agent_pos
+        x_p, y_p = agent_previous_pos
+
+        for build in self.buildings:
+            if (x >= build[0]+Rho and x <= (build[0]+build[2]+Rho) and 
+                y >= build[1]+Rho and y <= (build[1]+build[3]+Rho)):
+
+                if x_p <  build[0]+Rho:                                    # left
+                    radian = np.pi-radian if radian > 0 else -np.pi-radian
+                    return x-Rho, y, radian
+
+                if x_p > (build[0]+build[2]+Rho):                          # right
+                    radian = np.pi-radian if radian > 0 else -np.pi-radian
+                    return x+Rho, y, radian
+                
+                if y_p <  build[1]+Rho:                                    # buttom
+                    radian = -radian
+                    return x, y-Rho, radian
+                
+                if y_p > (build[1]+build[3]+Rho):                          # top
+                    radian = -radian
+                    return x, y+Rho, radian
+                
+        return x, y, radian
+
+
+
+
+# -------------------------------------------------------------------------------------------
 class Plot_Environment():
     # ---------------------------------------------------------------------------------------
-    def __init__(self, L, Agents):
-        self.L = L
+    def __init__(self, environment, Agents):
+        self.environment = environment
+
+        self.L = self.environment.L
         self.N = len(Agents)
         self.A = np.zeros((self.N, self.N))
         self.Agents = Agents
@@ -205,25 +328,36 @@ class Plot_Environment():
         self.Q_ij = np.ones((self.N, self.N))*1e-15
         self.previous_A = np.zeros((self.N, self.N))
 
+        fig, self.ax = plt.subplots(figsize=(14,14))
+        self.camera = Camera(fig)
+
 
     # ---------------------------------------------------------------------------------------
     def Environmental_Changes(self, Agents):
         self.N = len(Agents)
         self.k = np.zeros(self.N)
         self.A = np.zeros((self.N,self.N))
+        if len(self.A) != len(self.P_ij): self.P_ij, self.Q_ij = np.ones((self.N, self.N)), np.ones((self.N, self.N))
         self.Agents = Agents
         
         for i in range(self.N):
             for j in range(i+1, self.N):
                 distance = ( (Agents[i].x-Agents[j].x)**2 + (Agents[i].y-Agents[j].y)**2 )**0.5
                 if distance <= Agents[i].r and distance <= Agents[j].r:
-                    self.A[i][j] = self.A[j][i] = 1
-                    self.k[i]   += 1
-                    self.k[j]   += 1
+                    intersect = self.environment.do_intersect([(Agents[i].x, Agents[i].y), (Agents[j].x, Agents[j].y)])
+                    if not intersect or (distance <= 0.5*Agents[i].r and distance <= 0.5*Agents[j].r):
+                        self.A[i][j] = self.A[j][i] = 1
+                        self.k[i]   += 1
+                        self.k[j]   += 1
+
+        if len(self.A) != len(self.previous_A): self.previous_A = self.A
 
     # ---------------------------------------------------------------------------------------
     def Env_Plot(self, step):
-        fig, ax = plt.subplots(figsize=(14,14)) 
+        if self.environment.buildings:
+            for build in self.environment.buildings:
+                x, y, w, h = build
+                self.ax.add_patch( plt.Rectangle((x, y), width=w, height=h, fill=True, color='#146464cc', ec="black") ) 
 
         plt.text(0.9*self.L, 1.03*self.L, f'Episode {step}', fontname='Comic Sans MS', fontsize=12)
         plt.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)
@@ -232,21 +366,20 @@ class Plot_Environment():
         plt.grid(alpha = 0.3)
 
     # ---------------------------------------------------------------------------------------
-    def Animation(self, camera, step):
-        self.Env_Plot(step)
-
-        options = { 'node_size': 60, 'width': 1.5, 'node_color': (0.5,0.0,0.8,1) }
+    def Animation(self, step):
         G = nx.from_numpy_array(self.A)
+        options = { 'node_size': 60, 'width': 1.5, 'node_color': [(0.5,0.0,0.8,1)]*G.number_of_nodes() }
+
         for i in range(self.N):
             G.add_node(i, pos=(self.Agents[i].x, self.Agents[i].y))
-            if not (i in (list((sorted(nx.connected_components(G), key=len, reverse=True))[0]))): 
-                plt.gca().add_artist(plt.Circle((self.Agents[i].x, self.Agents[i].y), radius=self.Agents[i].r, color='#66338033'))
+            # if not (i in (list((sorted(nx.connected_components(G), key=len, reverse=True))[0]))): 
+            #     plt.gca().add_artist(plt.Circle((self.Agents[i].x, self.Agents[i].y), radius=self.Agents[i].r, color='#66338033'))
 
         pos = nx.get_node_attributes(G,'pos')
         nx.draw_networkx(G, pos, with_labels=True, **options)
 
-        plt.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)
-        camera.snap()
+        self.Env_Plot(step)
+        self.camera.snap()
     
     # ---------------------------------------------------------------------------------------
     def Calculate_Result(self, Agents, s):

@@ -36,7 +36,7 @@ def FileParsing(excel_file: pd.DataFrame):
             key = f'{col}_{n+1}'    # key of dictionary
             result_sets[key] = pd.Series.to_numpy(excel_file[f"{col}{col_read[n]}"])    # Retrieving values ​​from ensemble file
 
-            if col == 'Edges': result_sets[key] /= 50   # Because in Excel, the total number of edges is recorded, not average
+            if col == 'Edges': result_sets[key] = result_sets[key]/50   # Because in Excel, the total number of edges is recorded, not average
 
     return step, result_sets
 
@@ -79,6 +79,53 @@ def Ploting(excel_name: str, sheet_name: str, figure_feature: list, output_name:
 
     # ax[1].yaxis.set_major_formatter(FuncFormatter(scientific_5))
     ax[0].legend(legend, bbox_to_anchor=bbox_to_anchor, ncol=1)
+    plt.tight_layout(w_pad=-0.8)
+    plt.savefig(output_name, dpi=330, bbox_inches='tight')
+
+
+# -------------------------------------------------------------------------------------------
+def Ploting_multi(excels_list: list, sheet_name: str, figure_feature: list, output_name: str):
+
+    results_sets = []
+    for excel_name in excels_list:
+        excel = pd.read_excel(excel_name, sheet_name=sheet_name)
+        step, result_sets = FileParsing(excel)
+        results_sets.append(result_sets)
+
+    # --------------------------------------------------------------------
+    figsize, (num_raw, num_col), labelpad, ylim, legend, bbox_to_anchor, ncol = figure_feature
+    fig = plt.figure(figsize=figsize)
+    gs = fig.add_gridspec(num_raw, num_col)
+
+    # depending on how we want to perform the ritual ---------------------
+    if num_col == 1: ax = [plt.subplot(gs[i, 0]) for i in range(num_raw) ]      # Two-column article
+    else:                                                                       # Single column article
+        ax = []
+        for i in range(num_raw):    ax.append( plt.subplot(gs[0, 3*i:3*(i+1)]) )
+        for i in range(num_col//2): ax.append( plt.subplot(gs[1, 2*i:2*(i+1)]) )
+
+
+    # --------------------------------------------------------------------
+    title  = ["Connectivity (%)", "Hamiltonian", "Energy (sum)", "Radius (avr)", "Degrees (avr)"]
+    plot_  = ["Giant", "Hamilton", "Energy", "R_avg", "Edges"]
+    colors = ['#F96E2A', '#E73879', '#441752', '#FFD63A', '#8E1616', '#3A59D1']
+    shape  = [':', '--', '-', '-.', '-', '--']
+
+    # Drawing graphs -----------------------------------------------------
+    for i in range(len(plot_)):
+        for n in range(len(excels_list)):
+            key = f'{plot_[i]}_{2+1}'
+            if plot_[i] == 'Energy': results_sets[n][key] *= 5
+            ax[i].plot(step, results_sets[n][key], shape[n], color=colors[n])
+
+        ax[i].set_ylabel(title[i], labelpad=labelpad[i])
+        ax[i].locator_params(axis='y', nbins=4)
+        ax[i].set_xlim([-5,1000])
+        ax[i].set_ylim(ylim[i])
+        ax[i].grid(alpha= 0.3)
+
+    # ax[1].yaxis.set_major_formatter(FuncFormatter(scientific_5))
+    ax[0].legend(legend, bbox_to_anchor=bbox_to_anchor, ncol=ncol)
     plt.tight_layout(w_pad=-0.8)
     plt.savefig(output_name, dpi=330, bbox_inches='tight')
 

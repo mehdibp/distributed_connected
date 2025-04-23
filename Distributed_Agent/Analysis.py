@@ -25,6 +25,12 @@ def scientific_6(x, pos): return f'{x}'.replace("000000.0", "×10$^6$")
 
 # -------------------------------------------------------------------------------------------
 def FileParsing(excel_file: pd.DataFrame):
+    """
+    Args:
+        excel_file (DataFrame): Opened Excel dataframe ...
+                                (the file must be an ensemble averaging and all three model runs must be present in that sheet) 
+    """
+
     step = pd.Series.to_numpy(excel_file["Unnamed: 0"])
 
     columns  = ['Hamilton', 'Giant', 'Edges', 'Energy', 'Tau', 'R_avg'] # Names of saved columns
@@ -43,6 +49,13 @@ def FileParsing(excel_file: pd.DataFrame):
 
 # -------------------------------------------------------------------------------------------
 def Ploting(excel_name: str, sheet_name: str, figure_feature: list, output_name: str):
+    """
+    Args:
+        excel_name     (str):  Path to the ensemble averaging Excel file
+        sheet_name     (str):  Sheet name including all three rows (with at least 19 columns)
+        figure_feature (list): Features related to graph drawing(figsize, (num_raw, num_col), labelpad, ylim, legend, bbox_to_anchor)
+        output_name    (str):  Output file name for saving --> ./output.png
+    """
 
     excel = pd.read_excel(excel_name, sheet_name=sheet_name)
     step, result_sets = FileParsing(excel)
@@ -85,6 +98,13 @@ def Ploting(excel_name: str, sheet_name: str, figure_feature: list, output_name:
 
 # -------------------------------------------------------------------------------------------
 def Ploting_multi(excels_list: list, sheet_name: str, figure_feature: list, output_name: str):
+    """
+    Args:
+        excels_list    (list): List of Excel files that need to be opened one by one and their information extracted
+        sheet_name     (str):  The name of the sheet we are going to plot
+        figure_feature (list): Features related to graph drawing(figsize, (figsize, (num_raw, num_col), labelpad, ylim, legend, bbox_to_anchor, ncol)
+        output_name    (str):  Output file name for saving --> ./output.png
+    """
 
     results_sets = []
     for excel_name in excels_list:
@@ -132,6 +152,18 @@ def Ploting_multi(excels_list: list, sheet_name: str, figure_feature: list, outp
 
 # -------------------------------------------------------------------------------------------
 def Make_Animation(excel_path: str, excel_sheet: str, ENV_Parameters: list, Parameters: list, on_off: list, seed: int, output_name: str):
+    """
+    Args:
+        excel_path     (str):  Path to the Excel file from which we want to read the particle details
+        sheet_name     (str):  PThe name of the sheet we want to animate
+        ENV_Parameters (list): [L, buildings_type, num_buildings, num_streets]
+        Parameters     (list): [N, L, Alphas, learning_rate, discount_rate, batch_size, steps_per_train]
+        on_off         (list): A list of tuples containing (time of occurrence of On or Off | number of On or Off) ... 
+                               [(100, +10), (300, +10), (500, -10), (700, +10), (900, -10)]
+        seed           (int):  Fixed initial seed for easier comparison
+        output_name    (str):  Output file name for saving --> ./output.gif 
+    """
+
     result = pd.read_excel(excel_path, sheet_name=excel_sheet)
 
     WB = Workbook()

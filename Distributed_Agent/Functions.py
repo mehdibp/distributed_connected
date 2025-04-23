@@ -11,6 +11,18 @@ from . import Environment
 
 # -------------------------------------------------------------------------------------------
 def Initializer(ENV_Parameters: list, Parameters: list, Functions: list, model_path: str, ParticleExcel: Workbook, AveragedExcel: Workbook, sheet_name: str, seed: int=42):
+    """
+    Args:
+        ENV_Parameters (list):      [L, buildings_type, num_buildings, num_streets]
+        Parameters     (list):      [N, L, Alphas, learning_rate, discount_rate, batch_size, steps_per_train]
+        Functions      (list):      [requesting, moving, training]
+        model_path     (str):       Address and name of the initial saved model
+        ParticleExcel  (Workbook):  Excel file created to store particle details at irregular times
+        AveragedExcel  (Workbook):  Excel file created to store averaged parameters
+        sheet_name     (str):       Sheet name in Excel file
+        seed           (int):       Fixed initial seed for easier comparison
+    """
+    
     importlib.reload(Agent); importlib.reload(Environment)
     np.random.seed(seed);    random.seed(seed)
 
@@ -37,6 +49,15 @@ def Initializer(ENV_Parameters: list, Parameters: list, Functions: list, model_p
 
 # -------------------------------------------------------------------------------------------
 def ExportResults(step: int, plot_env: Environment.Plot_Environment, Agents: list, AveragedExcel_, ParticleExcel_):
+    """
+    Args:
+        step           (int):       The time step we are in
+        plot_env       (Plot_Env):  An object of the Plot_Environment class to extract its parameters
+        Agents         (list):      List of all agents (objects created from the Distributed_Agent class)
+        AveragedExcel_ (Worksheet): One of the Excel sheets we created to store the averaged parameters is in it
+        ParticleExcel_ (Worksheet): One of the Excel sheets we created to store agent details, in it   
+    """
+
     plot_env.Environmental_Changes(Agents)
     G = nx.from_numpy_array(plot_env.A)
     Giant = sorted(nx.connected_components(G), key=len, reverse=True)
@@ -71,6 +92,13 @@ def ExportResults(step: int, plot_env: Environment.Plot_Environment, Agents: lis
 
 # -------------------------------------------------------------------------------------------
 def base_model(plot_env: Environment.Plot_Environment, Agents: list, ParticleExcel_, AveragedExcel_):
+    """
+    Args:
+        plot_env       (Plot_Env):  An object of the Plot_Environment class to extract its parameters
+        Agents         (list):      List of all agents (objects created from the Distributed_Agent class)
+        AveragedExcel_ (Worksheet): One of the Excel sheets we created to store the averaged parameters is in it
+        ParticleExcel_ (Worksheet): One of the Excel sheets we created to store agent details, in it    
+    """
 
     for step in range(1001):
 
@@ -96,6 +124,13 @@ def base_model(plot_env: Environment.Plot_Environment, Agents: list, ParticleExc
 
 # -------------------------------------------------------------------------------------------
 def AI_model(plot_env: Environment.Plot_Environment, Agents: list, ParticleExcel_, AveragedExcel_):
+    """
+    Args:
+        plot_env       (Plot_Env):  An object of the Plot_Environment class to extract its parameters
+        Agents         (list):      List of all agents (objects created from the Distributed_Agent class)
+        AveragedExcel_ (Worksheet): One of the Excel sheets we created to store the averaged parameters is in it
+        ParticleExcel_ (Worksheet): One of the Excel sheets we created to store agent details, in it    
+    """
 
     for step in range(1001):
         for i in range(len(Agents)):

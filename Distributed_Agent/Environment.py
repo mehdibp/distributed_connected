@@ -11,6 +11,10 @@ from matplotlib.transforms import Bbox
 class Environment():
     # ---------------------------------------------------------------------------------------
     def __init__(self, ENV_Parameters: list):
+        """
+        Args: ENV_Parameters (list): [L, buildings_type, num_buildings, num_streets]
+        """
+
         self.L, buildings_type, num_buildings, num_streets = ENV_Parameters
 
         self.buildings = []
@@ -106,6 +110,12 @@ class Environment():
 class Plot_Environment():
     # ---------------------------------------------------------------------------------------
     def __init__(self, environment: Environment, Agents: list):
+        """
+        Args:
+            environment (Env) : An object of the "Environment" class that specifies the environment properties for each agent
+            Agents      (list): List of all agents (objects created from the Distributed_Agent class) 
+        """
+
         self.environment = environment
 
         self.L = self.environment.L

@@ -10,6 +10,13 @@ from . import Environment
 class Distributed_Agent():
     # ---------------------------------------------------------------------------------------
     def __init__(self, environment: Environment.Environment, Parameters: list, Functions: list, model_path: str):
+        """
+        Args:
+            environment (Env) : An object of the "Environment" class that specifies the environment properties for each agent
+            Parameters  (list): [N, L, Alphas, learning_rate, discount_rate, batch_size, steps_per_train]
+            Functions   (list): [requesting, moving, training]
+            model_path  (str) : Address and name of the initial saved model
+        """
 
         self.environment = environment
 

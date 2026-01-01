@@ -169,10 +169,7 @@ cython_debug/
 
 # My folders!!!
 /py
-/All Results
-/Datas
-/SDS
-/Different Model Training
+/Results
 
 Saved Model/* 
 !exported_model
@@ -180,6 +177,13 @@ Saved Model/*
 !Saved Model/SevedModel tf=2-15.keras
 !Saved Model/SevedModel tf=2-18.keras
 
+/Sumo/blender
+/Sumo/maps/Zanjan_1.net - Copy.xml
+/Sumo/maps/Zanjan_2.net.xml
+/Sumo/maps/Zanjan_3.net.xml
+
+
+/tests
+/notebooks
 Agents - tests.ipynb
 tests.ipynb
-

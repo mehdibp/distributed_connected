@@ -188,7 +188,7 @@ class Plot_Environment():
 
         # Hamiltonian of the whole system -----------------------------------------
         hamilton = 0
-        for i in range(self.N): hamilton += self.Agents[i].Hamiltonian()
+        for i in range(self.N): hamilton += self.Agents[i].hamiltonian()
         # -------------------------------------------------------------------------
         edge = self.k.sum()/2
         # -------------------------------------------------------------------------

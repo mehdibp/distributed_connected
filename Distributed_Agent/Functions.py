@@ -31,7 +31,7 @@ def Initializer(ENV_Parameters: list, Parameters: list, Functions: list, model_p
 
     Agents = []
     for _ in range(Parameters[0]): 
-        Agents.append(Agent.Distributed_Agent(environment, Parameters, Functions, model_path))
+        Agents.append(Agent.Distributed_Agent(environment, Parameters[1:], Functions, model_path))
     
     plot_env = Environment.Plot_Environment(environment, Agents)
 
@@ -48,7 +48,7 @@ def Initializer(ENV_Parameters: list, Parameters: list, Functions: list, model_p
 
 
 # -------------------------------------------------------------------------------------------
-def ExportResults(step: int, plot_env: Environment.Plot_Environment, Agents: list, AveragedExcel_, ParticleExcel_):
+def ExportResults(step: int, plot_env: Environment.Plot_Environment, Agents: list[Agent.Distributed_Agent], AveragedExcel_, ParticleExcel_):
     """
     Args:
         step           (int):       The time step we are in
@@ -74,8 +74,8 @@ def ExportResults(step: int, plot_env: Environment.Plot_Environment, Agents: lis
     # step	index	X	Y	Component	r	k	rho	Energy	connected_to ------------------------
     # state   action  reward  next_state    loss ------------------------------------------------
     for i in range(len(Agents)):
-        particle_hamilton = Agents[i].Hamiltonian()
-        particle_k, particle_r, particle_rho = Agents[i].MyState()
+        particle_hamilton = Agents[i].hamiltonian()
+        particle_k, particle_r, particle_rho = Agents[i].my_state()
         state, action, reward, next_state    = Agents[i].replay_memory[-1]
 
         for j in range(len(Giant)):
@@ -91,7 +91,7 @@ def ExportResults(step: int, plot_env: Environment.Plot_Environment, Agents: lis
 
 
 # -------------------------------------------------------------------------------------------
-def base_model(plot_env: Environment.Plot_Environment, Agents: list, ParticleExcel_, AveragedExcel_):
+def base_model(plot_env: Environment.Plot_Environment, Agents: list[Agent.Distributed_Agent], ParticleExcel_, AveragedExcel_):
     """
     Args:
         plot_env       (Plot_Env):  An object of the Plot_Environment class to extract its parameters
@@ -103,10 +103,11 @@ def base_model(plot_env: Environment.Plot_Environment, Agents: list, ParticleExc
     for step in range(1001):
 
         for i in range(len(Agents)):
-            Agents[i].N = len(Agents)
-            Agents[i].OtherAgents = (Agents[:i] + Agents[i+1:])
+            neighbors = Agent.Agent_Interaction(Agents[i]).update_neighbors(Agents)
+            Agents[i].neighbors = neighbors
+            Agents[i].N_density = len(Agents)/(plot_env.L**2)
 
-            state  = [s+1 for s in Agents[i].MyState()]
+            state  = [s+1 for s in Agents[i].my_state()]
             if Agents[i].k < 5: action = np.random.randint(2)
             else: action = 0
         
@@ -123,7 +124,7 @@ def base_model(plot_env: Environment.Plot_Environment, Agents: list, ParticleExc
 
 
 # -------------------------------------------------------------------------------------------
-def AI_model(plot_env: Environment.Plot_Environment, Agents: list, ParticleExcel_, AveragedExcel_):
+def AI_model(plot_env: Environment.Plot_Environment, Agents: list[Agent.Distributed_Agent], ParticleExcel_, AveragedExcel_):
     """
     Args:
         plot_env       (Plot_Env):  An object of the Plot_Environment class to extract its parameters
@@ -134,7 +135,8 @@ def AI_model(plot_env: Environment.Plot_Environment, Agents: list, ParticleExcel
 
     for step in range(1001):
         for i in range(len(Agents)):
-            Agents[i].Prediction( (Agents[:i] + Agents[i+1:]) )
+            neighbors = Agent.Agent_Interaction(Agents[i]).update_neighbors(Agents)
+            Agents[i].prediction( neighbors, len(Agents)/(plot_env.L**2) )
 
         
         # -------------------------------------------------------------------------------------------

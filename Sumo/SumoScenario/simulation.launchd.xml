@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+
+<launch>
+    <basedir path="/home/mehdi_bp/Projects/VaNet/Sumo/SumoScenario/"/>
+
+    <copy file="Zanjan.net.xml" />
+    <copy file="routes.rou.xml" />
+    <!-- <copy file="erlangen.poly.xml" /> -->
+    <copy file="simulation.sumocfg" configfile="true" type="config" />
+</launch>

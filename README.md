@@ -26,7 +26,12 @@ VaNet/
 ├── Sumo/                       # Traffic Configuration
 │   ├── maps/                   # Zanjan City .net.xml files
 │   ├── routes/                 # Vehicle route definitions (.rou.xml)
-│   └── simulation.sumocfg      # SUMO configuration file
+│   ├── polygons/               # Obstacles and buildings (.poly.xml)
+│   ├── radiation/              # adiation Pattern (.xml)
+│   ├── physics/                # Physical Layer (.xml)
+│   ├── SumoScenario/           # Main Files (*.xml)
+│   │   ├── simulation.sumocfg
+│   │   └── simulation.launchd.xml
 │
 ├── omnetpp/                    # Network Simulation (C++/NED)
 │   ├── src/                    # Custom RLNode & NetworkServer logic

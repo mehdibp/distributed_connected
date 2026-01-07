@@ -1,7 +1,7 @@
 <configuration>
   <input>
-    <net-file value="./maps/Zanjan_1.net.xml"/>
-    <route-files value="./routes/routes - 1.rou.xml"/>
+    <net-file value="Zanjan.net.xml"/>
+    <route-files value="routes.rou.xml"/>
   </input>
   <time>
     <begin value="0"/>

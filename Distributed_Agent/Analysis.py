@@ -1,7 +1,6 @@
 import ast
 import numpy as np
 import pandas as pd
-from openpyxl import Workbook
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
@@ -151,7 +150,7 @@ def Ploting_multi(excels_list: list, sheet_name: str, figure_feature: list, outp
 
 
 # -------------------------------------------------------------------------------------------
-def Make_Animation(excel_path: str, excel_sheet: str, ENV_Parameters: list, Parameters: list, on_off: list, seed: int, output_name: str):
+def Make_Animation(excel_path: str, excel_sheet: str, ENV_Parameters: list, Parameters: list, on_off: list, output_name: str):
     """
     Args:
         excel_path     (str):  Path to the Excel file from which we want to read the particle details
@@ -160,15 +159,12 @@ def Make_Animation(excel_path: str, excel_sheet: str, ENV_Parameters: list, Para
         Parameters     (list): [N, L, Alphas, learning_rate, discount_rate, batch_size, steps_per_train]
         on_off         (list): A list of tuples containing (time of occurrence of On or Off | number of On or Off) ... 
                                [(100, +10), (300, +10), (500, -10), (700, +10), (900, -10)]
-        seed           (int):  Fixed initial seed for easier comparison
         output_name    (str):  Output file name for saving --> ./output.gif 
     """
 
     result = pd.read_excel(excel_path, sheet_name=excel_sheet)
 
-    WB = Workbook()
-    model_path = f'./All Results/Different Model Training/models with alpha4 = -1000/L=45/model_H_best_weight.keras'
-    plot_env, Agents, _, _ = Functions.Initializer(ENV_Parameters, Parameters, [0,0,0], model_path, WB, WB, '', seed)
+    plot_env, Agents = Functions.Initializer(ENV_Parameters, Parameters, [0,0,0])
 
     N = Parameters[0]
     ind = -N
@@ -176,16 +172,16 @@ def Make_Animation(excel_path: str, excel_sheet: str, ENV_Parameters: list, Para
     for step in range(1001):
         ind += N
         if c != len(on_off):
-            if step == on_off[c][0]: N3 += on_off[c][1]; c += 1     # If any factors were removed or added during the run
+            if step == on_off[c][0]: N += on_off[c][1]; c += 1     # If any factors were removed or added during the run
 
         connection = result["connected to"][ind:ind+N].apply(lambda cell: ast.literal_eval(cell))        # string to list
 
         A = np.zeros((N, N))
         for i in range(N):
-            for j in connection[ind + i]: A[i][j] = 1       # Creating an adjacency matrix from connections stored in Excel
-        plot_env.A = A                                      # Casting the adjacency matrix into the Plot_Environment class object
+            for j in connection[ind + i]: A[i][j] = 1      # Creating an adjacency matrix from connections stored in Excel
+        plot_env.A = A                                     # Casting the adjacency matrix into the Plot_Environment object
 
-        for i in range(N): Agents[i].x, Agents[i].y = result["X"][ind+i], result["Y"][ind+i] # Reading agent locations from an Excel
+        for i in range(N): Agents[i].x, Agents[i].y = result["X"][ind+i], result["Y"][ind+i] # Read agent locations from Excel
 
         if step%5==0: plot_env.Animation(step)
     

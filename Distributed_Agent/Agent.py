@@ -1,4 +1,3 @@
-import random
 import numpy as np
 import tensorflow as tf
 from collections import deque
@@ -38,11 +37,11 @@ class Agent_in_Env():
         x_prev, y_prev = self.x, self.y             # Save previous agent location
 
         # Assume a non-Markovian behavior for each particle and move according to it
-        if random.random() < 0.6: self.x +=   stride*np.cos(self.radian)
-        else:                     self.x += 2*stride*(random.random() -0.5)
+        if np.random.random() < 0.6: self.x +=   stride*np.cos(self.radian)
+        else:                        self.x += 2*stride*(np.random.random() -0.5)
 
-        if random.random() < 0.6: self.y +=   stride*np.sin(self.radian)
-        else:                     self.y += 2*stride*(random.random() -0.5)
+        if np.random.random() < 0.6: self.y +=   stride*np.sin(self.radian)
+        else:                        self.y += 2*stride*(np.random.random() -0.5)
 
         # Reflective boundary condition -------------------------------------------------
         self.x, self.y, self.radian = self.environment.BoundaryCondition((self.x, self.y), self.radian, stride)
@@ -89,7 +88,7 @@ class Agent_Interaction():
 # -------------------------------------------------------------------------------------------
 class Distributed_Agent(Agent_in_Env):
     # ---------------------------------------------------------------------------------------
-    def __init__(self, environment: Environment.Environment, Parameters: list, Functions: list, model_path: str):
+    def __init__(self, environment: Environment.Environment, Parameters: list, Functions: list, model_path: str=None):
         """
         Args:
             environment (Env) : An object of the "Environment" class that specifies the environment properties for each agent
@@ -107,15 +106,13 @@ class Distributed_Agent(Agent_in_Env):
 
 
         super().__init__(environment, self.L)
+        self.N_density = 1
         self.r = 1.                   # Transition reange
         self.k = 0                    # Degree of a vertex (Number of conections)
 
 
         # Build model -----------------------------------------------------------------------
-        tf.keras.backend.clear_session()
-        custom_activation = {'custom_activation': tf.keras.layers.Activation(self.custom_activation)}
-        self.model = tf.keras.models.load_model(model_path, custom_objects=custom_activation, compile=False)
-        
+        self.model     = self.build_model(model_path)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr, clipnorm=1.0)
         self.loss_fn   = tf.keras.losses.mse
         
@@ -126,6 +123,21 @@ class Distributed_Agent(Agent_in_Env):
 
         # self.interaction = Agent_Interaction(self)
 
+    # ---------------------------------------------------------------------------------------
+    def build_model(self, model_path: str=None):
+        tf.keras.backend.clear_session()
+        custom_activation = {'custom_activation': tf.keras.layers.Activation(self.custom_activation)}
+
+        if model_path is not None:
+            model = tf.keras.models.load_model(model_path, custom_objects=custom_activation, compile=False)
+        else:
+            inputs = tf.keras.layers.Input(shape=(3,), name='input') 
+            x = tf.keras.layers.Dense(32, activation='elu', name='dense_1')(inputs) 
+            x = tf.keras.layers.Dense(32, activation='elu', name='dense_2')(x) 
+            outputs = tf.keras.layers.Dense(2, activation=self.custom_activation, name='output')(x) 
+            model = tf.keras.models.Model(inputs=inputs, outputs=outputs)
+
+        return model
 
     # ---------------------------------------------------------------------------------------    
     def prediction(self, neighbors, N_density):
@@ -156,9 +168,7 @@ class Distributed_Agent(Agent_in_Env):
             if distance <= 1.6 and (not intersect or distance <= 0.8):  ### should debug it
                 rho += 1
 
-        # rho = np.clip(rho, self.N_density, 8)
-        rho = min(rho, 8)                       ### should debug in training
-        rho = max(rho, self.N_density)
+        rho = np.clip(rho, self.N_density, 8)   ### should debug in training
 
         return np.array([self.k, self.r, rho], dtype=np.float32)
 
@@ -169,9 +179,7 @@ class Distributed_Agent(Agent_in_Env):
         Hamilton_t0 = self.hamiltonian()
 
         delta_r = action* np.sqrt(1/self.N_density)/4 *np.random.random()
-        self.r += delta_r
-        if self.r < 0:             self.r = 0
-        if self.r > 2**0.5*self.L: self.r = 2**0.5*self.L
+        self.r  = np.clip(self.r+delta_r, 0.0, np.sqrt(2)*self.L)
         
         _, _, rho = self.my_state()
 
@@ -230,7 +238,7 @@ class Distributed_Agent(Agent_in_Env):
                 
         next_Q_values   = self.model(next_states)                       # 32 predict of 2 actions
         max_next_Q_values = np.max(next_Q_values, axis=1)               # choose higher probiblity of each actions (of each 32)
-        target_Q_values = rewards + self.gamma*max_next_Q_values     # Equation 18-5. Q-Learning algorithm
+        target_Q_values = rewards + self.gamma*max_next_Q_values        # Equation 18-5. Q-Learning algorithm
         target_Q_values = target_Q_values.reshape(-1, 1)                # reshape to (32,1) beacuse of Q_values.shape
         
         

@@ -52,6 +52,8 @@ class Environment():
     
     # ---------------------------------------------------------------------------------------
     def RegularBuilding(self, num_streets: int):
+        if num_streets == 0: return
+        
         Ns_Vertical   = int(np.ceil (num_streets/2))
         Ns_Horizontal = int(np.floor(num_streets/2))
 
@@ -123,10 +125,6 @@ class Plot_Environment():
         self.A = np.zeros((self.N, self.N))
         self.Agents = Agents
 
-        # Parameter for calculating tau in Calculate_Result()
-        self.P_ij = np.ones((self.N, self.N))*1e-15
-        self.Q_ij = np.ones((self.N, self.N))*1e-15
-        self.previous_A = np.zeros((self.N, self.N))
 
         fig, self.ax = plt.subplots(figsize=(14,14))
         fig.subplots_adjust(left=0.05, bottom=0.05, right=0.95, top=0.95, wspace=None, hspace=None)
@@ -138,7 +136,6 @@ class Plot_Environment():
         self.N = len(Agents)
         self.k = np.zeros(self.N)
         self.A = np.zeros((self.N,self.N))
-        if len(self.A) != len(self.P_ij): self.P_ij, self.Q_ij = np.ones((self.N, self.N)), np.ones((self.N, self.N))
         self.Agents = Agents
         
         for i in range(self.N):
@@ -150,8 +147,6 @@ class Plot_Environment():
                         self.A[i][j] = self.A[j][i] = 1
                         self.k[i]   += 1
                         self.k[j]   += 1
-
-        if len(self.A) != len(self.previous_A): self.previous_A = self.A
 
     # ---------------------------------------------------------------------------------------
     def Env_Plot(self, step: int):
@@ -183,7 +178,7 @@ class Plot_Environment():
         self.camera.snap()
     
     # ---------------------------------------------------------------------------------------
-    def Calculate_Result(self, Agents: list, s):
+    def Calculate_Result(self, Agents: list):
         self.Environmental_Changes(Agents)
 
         # Hamiltonian of the whole system -----------------------------------------
@@ -201,17 +196,6 @@ class Plot_Environment():
         # Giant component of network (%) ------------------------------------------
         G = nx.from_numpy_array(self.A)
         giant = len((sorted(nx.connected_components(G), key=len, reverse=True))[0])/self.N * 100
-
-        # Calculate Tau = 1/sM sigma(P_ij/Q_ij) -----------------------------------
-        for i in range(self.N):
-            for j in range(i, self.N):
-                if self.previous_A[i][j] != self.A[i][j]:
-                    self.Q_ij[i][j] += 1
-                    self.Q_ij[j][i] += 1
-
-        self.P_ij += self.A
-        self.previous_A = self.A
-        tau = 1/((s+1e-15)*(self.N*(self.N-1))) * (self.P_ij/self.Q_ij).sum()
         
-        return hamilton, edge, energy, average_r, giant, tau
+        return hamilton, edge, energy, average_r, giant
 

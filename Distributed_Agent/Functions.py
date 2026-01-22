@@ -1,8 +1,6 @@
-import random
 import numpy as np
 import networkx as nx
 from openpyxl import Workbook
-import importlib
 
 from . import Agent
 from . import Environment
@@ -10,21 +8,17 @@ from . import Environment
 
 
 # -------------------------------------------------------------------------------------------
-def Initializer(ENV_Parameters: list, Parameters: list, Functions: list, model_path: str, ParticleExcel: Workbook, AveragedExcel: Workbook, sheet_name: str, seed: int=42):
+def Initializer(ENV_Parameters: list, Parameters: list, Functions: list, model_path: str=None, seed: int=30):
     """
     Args:
-        ENV_Parameters (list):      [L, buildings_type, num_buildings, num_streets]
-        Parameters     (list):      [N, L, Alphas, learning_rate, discount_rate, batch_size, steps_per_train]
-        Functions      (list):      [requesting, moving, training]
-        model_path     (str):       Address and name of the initial saved model
-        ParticleExcel  (Workbook):  Excel file created to store particle details at irregular times
-        AveragedExcel  (Workbook):  Excel file created to store averaged parameters
-        sheet_name     (str):       Sheet name in Excel file
-        seed           (int):       Fixed initial seed for easier comparison
+        ENV_Parameters (list): [L, buildings_type, num_buildings, num_streets]
+        Parameters     (list): [N, L, Alphas, learning_rate, discount_rate, batch_size, steps_per_train]
+        Functions      (list): [requesting, moving, training]
+        model_path     (str):  Address and name of the initial saved model
+        seed           (int):  Fixed initial seed for easier comparison
     """
     
-    importlib.reload(Agent); importlib.reload(Environment)
-    np.random.seed(seed);    random.seed(seed)
+    np.random.seed(seed)
 
     # Build the environment and the agents ----------------------------------------------
     environment = Environment.Environment(ENV_Parameters)
@@ -35,27 +29,16 @@ def Initializer(ENV_Parameters: list, Parameters: list, Functions: list, model_p
     
     plot_env = Environment.Plot_Environment(environment, Agents)
 
-
-    # Creating Excel files for storage --------------------------------------------------
-    ParticleExcel_ = ParticleExcel.create_sheet(title=sheet_name)
-    AveragedExcel_ = AveragedExcel.create_sheet(title=sheet_name)
-    ParticleExcel_.append(["step", "index", "X", "Y", "Component", "r", "k", "rho", "Hamilton", "connected to"
-                           , "state", "action", "reward", "next_state", "loss"])
-    AveragedExcel_.append(["step", "Hamilton", "Giant", "Edges", "Energy", "Tau", "R_avg", "loss"])
-
-    
-    return plot_env, Agents, ParticleExcel_, AveragedExcel_
+    return plot_env, Agents
 
 
 # -------------------------------------------------------------------------------------------
-def ExportResults(step: int, plot_env: Environment.Plot_Environment, Agents: list[Agent.Distributed_Agent], AveragedExcel_, ParticleExcel_):
+def ExportResults(step: int, plot_env: Environment.Plot_Environment, Agents: list[Agent.Distributed_Agent]):
     """
     Args:
-        step           (int):       The time step we are in
-        plot_env       (Plot_Env):  An object of the Plot_Environment class to extract its parameters
-        Agents         (list):      List of all agents (objects created from the Distributed_Agent class)
-        AveragedExcel_ (Worksheet): One of the Excel sheets we created to store the averaged parameters is in it
-        ParticleExcel_ (Worksheet): One of the Excel sheets we created to store agent details, in it   
+        step     (int):       The time step we are in
+        plot_env (Plot_Env):  An object of the Plot_Environment class to extract its parameters
+        Agents   (list):      List of all agents (objects created from the Distributed_Agent class)
     """
 
     plot_env.Environmental_Changes(Agents)
@@ -63,16 +46,17 @@ def ExportResults(step: int, plot_env: Environment.Plot_Environment, Agents: lis
     Giant = sorted(nx.connected_components(G), key=len, reverse=True)
      
     # Show Averaged Results ---------------------------------------------------------------------
-    # step	Hamilton	Giant	Edges	Energy	Tau	R_avg loss ----------------------------------
-    hamilton, edge, energy, average_r, giant, tau = plot_env.Calculate_Result(Agents, step)
-    loss = 0; 
-    for i in range(len(Agents)): loss += Agents[i].loss.numpy()
-    AveragedExcel_.append([step, hamilton, giant, edge, energy, tau, average_r, loss])
+    # step	Hamilton	Giant	Edges	Energy	R_avg loss --------------------------------------
+    hamilton, edge, energy, average_r, giant = plot_env.Calculate_Result(Agents)
+    loss = np.mean([a.loss.numpy() for a in Agents])
+    AveragedResult = [step, hamilton, giant, edge, energy, average_r, loss]
 
 
     # Show Particle Results ---------------------------------------------------------------------
     # step	index	X	Y	Component	r	k	rho	Energy	connected_to ------------------------
     # state   action  reward  next_state    loss ------------------------------------------------
+    ParticleResult = []
+
     for i in range(len(Agents)):
         particle_hamilton = Agents[i].hamiltonian()
         particle_k, particle_r, particle_rho = Agents[i].my_state()
@@ -85,22 +69,24 @@ def ExportResults(step: int, plot_env: Environment.Plot_Environment, Agents: lis
         for j in range(len(Agents)):
             if plot_env.A[i][j] == 1: co.append(j) 
 
-        ParticleExcel_.append([step, i, Agents[i].x, Agents[i].y, component, 
-                                particle_r, particle_k, particle_rho, particle_hamilton, str(co), 
-                                str(state), action, reward, str(next_state), Agents[i].loss.numpy()])
+        ParticleResult.append([step, i, Agents[i].x, Agents[i].y, component, 
+                               particle_r, particle_k, particle_rho, particle_hamilton, str(co), 
+                               str(state), action, reward, str(next_state), Agents[i].loss.numpy()])
+        
+    return AveragedResult, ParticleResult
 
 
 # -------------------------------------------------------------------------------------------
-def base_model(plot_env: Environment.Plot_Environment, Agents: list[Agent.Distributed_Agent], ParticleExcel_, AveragedExcel_):
+def base_model(plot_env: Environment.Plot_Environment, Agents: list[Agent.Distributed_Agent], MAX_step: int=1001):
     """
     Args:
-        plot_env       (Plot_Env):  An object of the Plot_Environment class to extract its parameters
-        Agents         (list):      List of all agents (objects created from the Distributed_Agent class)
-        AveragedExcel_ (Worksheet): One of the Excel sheets we created to store the averaged parameters is in it
-        ParticleExcel_ (Worksheet): One of the Excel sheets we created to store agent details, in it    
+        plot_env (Plot_Env):  An object of the Plot_Environment class to extract its parameters
+        Agents   (list):      List of all agents (objects created from the Distributed_Agent class) 
     """
 
-    for step in range(1001):
+    AveragedResults, ParticleResults = [], []
+
+    for step in range(MAX_step):
 
         for i in range(len(Agents)):
             neighbors = Agent.Agent_Interaction(Agents[i]).update_neighbors(Agents)
@@ -119,28 +105,56 @@ def base_model(plot_env: Environment.Plot_Environment, Agents: list[Agent.Distri
 
 
         # -------------------------------------------------------------------------------------------
-        ExportResults(step, plot_env, Agents, AveragedExcel_, ParticleExcel_)
+        AveragedResult, ParticleResult = ExportResults(step, plot_env, Agents)
+        AveragedResults.append(AveragedResult)
+        ParticleResults.append(ParticleResult)
         print("\rStep: {}".format(step), end="")
+
+    return AveragedResults, ParticleResults
 
 
 # -------------------------------------------------------------------------------------------
-def AI_model(plot_env: Environment.Plot_Environment, Agents: list[Agent.Distributed_Agent], ParticleExcel_, AveragedExcel_):
+def AI_model(plot_env: Environment.Plot_Environment, Agents: list[Agent.Distributed_Agent], MAX_step: int=1001):
     """
     Args:
-        plot_env       (Plot_Env):  An object of the Plot_Environment class to extract its parameters
-        Agents         (list):      List of all agents (objects created from the Distributed_Agent class)
-        AveragedExcel_ (Worksheet): One of the Excel sheets we created to store the averaged parameters is in it
-        ParticleExcel_ (Worksheet): One of the Excel sheets we created to store agent details, in it    
+        plot_env (Plot_Env):  An object of the Plot_Environment class to extract its parameters
+        Agents   (list):      List of all agents (objects created from the Distributed_Agent class) 
     """
 
-    for step in range(1001):
+    AveragedResults, ParticleResults = [], []
+
+    for step in range(MAX_step):
         for i in range(len(Agents)):
             neighbors = Agent.Agent_Interaction(Agents[i]).update_neighbors(Agents)
             Agents[i].prediction( neighbors, len(Agents)/(plot_env.L**2) )
 
         
         # -------------------------------------------------------------------------------------------
-        ExportResults(step, plot_env, Agents, AveragedExcel_, ParticleExcel_)
+        AveragedResult, ParticleResult = ExportResults(step, plot_env, Agents)
+        AveragedResults.append(AveragedResult)
+        ParticleResults.append(ParticleResult)
         print("\rStep: {}".format(step), end="")
 
+    return AveragedResults, ParticleResults
 
+
+# -------------------------------------------------------------------------------------------
+def SaveExcel(ParticleExcel: Workbook, AveragedExcel: Workbook, sheet_name: str, AveragedResults: list, ParticleResults: list):
+    """
+    Arg:
+        ParticleExcel   (Workbook):  Excel file created to store particle details at irregular times
+        AveragedExcel   (Workbook):  Excel file created to store averaged parameters
+        sheet_name      (str):       Sheet name in Excel file
+        AveragedResults (List):      
+        ParticleResults (List):      
+    """
+    # Creating Excel files for storage --------------------------------------------------
+    ParticleExcel_ = ParticleExcel.create_sheet(title=sheet_name)
+    AveragedExcel_ = AveragedExcel.create_sheet(title=sheet_name)
+
+    ParticleExcel_.append(["step", "index", "X", "Y", "Component", "r", "k", "rho", "Hamilton", "connected to", "state", "action", "reward", "next_state", "loss"])
+    AveragedExcel_.append(["step", "Hamilton", "Giant", "Edges", "Energy", "R_avg", "loss"])
+    
+    ParticleResults = [ particle for step in ParticleResults for particle in step ]
+    for p in ParticleResults: ParticleExcel_.append(list(p))
+    for a in AveragedResults: AveragedExcel_.append(a)

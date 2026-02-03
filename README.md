@@ -17,11 +17,49 @@ The goal is to maintain a fully connected vehicular network (Global Connectivity
 ```text
 VaNet/
 │
-├── Distributed_Agent/          # Reinforcement Learning Logic (Python)
-│   ├── Agent.py                # RL Class (DQN/PPO implementation)
-│   ├── Environment.py          # Wrapper for Network-to-RL state mapping
-│   ├── Functions.py            # Simulation control & Initializers
-│   └── Analysis.py             # Visualization & Metrics
+├── AgeNet/                     # The Library
+│   ├── __init__.py
+│   │
+│   ├── environment/            # layer 1 – world & map
+│   │   ├── __init__.py
+│   │   ├── base.py
+│   │   ├── simple.py
+│   │   ├── sumo.py
+│   │   └── geometry.py
+│   │
+│   ├── physics/                # layer 2 – physical state & motion
+│   │   ├── __init__.py
+│   │   ├── mobility.py
+│   │   └── state.py
+│   │
+│   ├── communication/          # layer 3 – network & interaction
+│   │   ├── __init__.py
+│   │   ├── channel.py
+│   │   ├── radio.py
+│   │   ├── neighbor_finder.py
+│   │   └── reques_policy.py
+│   │
+│   │── learning/               # layer 4 – intelligence & control
+│   │   ├── __init__.py
+│   │   ├── brain.py
+│   │   ├── hamiltonian.py
+│   │   ├── radius_controller.py
+│   │   └── state.py
+│   │
+│   │── core/                   # agent + time evolution
+│   │   ├── __init__.py
+│   │   ├── agent.py
+│   │   └── simulator.py
+│   │
+│   │── analysis/               # post-processing & evaluation
+│   │   ├── __init__.py
+│   │   ├── metrics.py
+│   │   ├── topology.py
+│   │   └── visualization.py
+│   │
+│   └── experiments/            # experiment orchestration
+│       ├── __init__.py
+│       └── exporters.py
 │
 ├── Sumo/                       # Traffic Configuration
 │   ├── maps/                   # Zanjan City .net.xml files
@@ -29,9 +67,9 @@ VaNet/
 │   ├── polygons/               # Obstacles and buildings (.poly.xml)
 │   ├── radiation/              # adiation Pattern (.xml)
 │   ├── physics/                # Physical Layer (.xml)
-│   ├── SumoScenario/           # Main Files (*.xml)
-│   │   ├── simulation.sumocfg
-│   │   └── simulation.launchd.xml
+│   └── SumoScenario/           # Main Files (*.xml)
+│       ├── simulation.sumocfg
+│       └── simulation.launchd.xml
 │
 ├── omnetpp/                    # Network Simulation (C++/NED)
 │   ├── src/                    # Custom RLNode & NetworkServer logic
@@ -40,7 +78,8 @@ VaNet/
 │
 ├── Results/                    # Simulation logs & Excel exports
 ├── Saved Model/                # Pre-trained .keras models
-└── Agents.ipynb                # Main Execution Notebook
+│
+└── main.ipynb                  # Main Execution Notebook
 ```
 
 ## ⚙️ Logic & Hamiltonian Reward 
@@ -62,3 +101,4 @@ The system evaluates the following:
 - **Power Consumption**: Average transmission power per node.
 - **Convergence**: RL training stability over episodes.
 - **Path Availability**: Existence of multi-hop paths between any two nodes.
+

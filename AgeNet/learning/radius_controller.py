@@ -1,0 +1,34 @@
+import numpy as np
+from typing import Tuple
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING: from ..core.agent import Agent
+
+
+class RadiusController:
+    # ---------------------------------------------------------------------------------------
+    def __init__(self, agent: "Agent"):
+        self.agent = agent
+    
+
+    # ---------------------------------------------------------------------------------------
+    def apply_action(self, action: float) -> Tuple[float, float]:
+        radius = self.agent.r
+
+        action_dim  = self.agent.brain.action_dim
+        action_dim_ = (action_dim-1)/2
+        action = (action - action_dim_)/(action_dim_)   # between -1 and +1
+
+        delta_r = action* np.sqrt(1/self.agent.rho)/4 *np.random.random()
+        radius  = max(0.0, radius + delta_r)
+
+        return radius, delta_r
+
+    # ---------------------------------------------------------------------------------------
+    def flip(self, delta_r: float, delta_H: float) -> float:
+        radius = self.agent.r
+        delta_H_clip = np.clip(-delta_H / 4, -20, 2)
+        if np.exp(delta_H_clip) < np.random.random():
+            radius -= delta_r * np.random.random()
+
+        return radius

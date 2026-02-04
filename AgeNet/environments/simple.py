@@ -16,15 +16,15 @@ class SimpleEnvironment(Environment):
         super().__init__()
 
         self.L = L
-        self.buildings    = []
-        self.build_bounds = []
+        self._buildings    = []
+        self._build_bounds = []
 
         if   buildings_type == "random" : self._random_buildings (num_buildings)
         elif buildings_type == "regular": self._regular_buildings(num_streets)
         else: raise ValueError( "buildings_type is invalid. Allowed values: 'random' or 'regular'." )
 
 
-        self.physics = SimplePhysics(self.L, self.buildings)        # attach physics module
+        self.physics = SimplePhysics(self.L, self._buildings)        # attach physics module
 
     # lifecycle -----------------------------------------------------------------------------
     def start(self): 
@@ -76,17 +76,17 @@ class SimpleEnvironment(Environment):
 
     # internal ------------------------------------------------------------------------------
     def _random_buildings(self, num_buildings: int):
-        while len(self.buildings) < num_buildings:
+        while len(self._buildings) < num_buildings:
             x, y = np.random.randint(self.L, size=2)
             w, h = np.random.randint(2     , size=2) + self.L/15    # width, height
 
             if all(
                 x + w < bx or x > bx + bw or
                 y + h < by or y > by + bh
-                for bx, by, bw, bh in self.buildings
+                for bx, by, bw, bh in self._buildings
             ):
-                self.buildings   .append(np.array([x, y, w, h]))
-                self.build_bounds.append(Bbox.from_bounds(x, y, w, h))
+                self._buildings   .append(np.array([x, y, w, h]))
+                self._build_bounds.append(Bbox.from_bounds(x, y, w, h))
 
     def _regular_buildings(self, num_streets: int):
         if num_streets == 0: return
@@ -105,8 +105,8 @@ class SimpleEnvironment(Environment):
                 w = 3*Ls_Vertical           # width
                 h = 2*Ls_Horizontal         # height
 
-                self.buildings   .append(np.array([x, y, w, h]))
-                self.build_bounds.append(Bbox.from_bounds(x, y, w, h))
+                self._buildings   .append(np.array([x, y, w, h]))
+                self._build_bounds.append(Bbox.from_bounds(x, y, w, h))
 
 
     # physics helpers (delegation) ----------------------------------------------------------
@@ -130,7 +130,7 @@ class SimplePhysics:
     # ---------------------------------------------------------------------------------------
     def __init__(self, L: float, buildings: List[np.ndarray]):
         self.L = L
-        self.buildings = buildings
+        self._buildings = buildings
 
     # ---------------------------------------------------------------------------------------
     def is_valid_position(self, position: np.ndarray) -> bool:
@@ -139,7 +139,7 @@ class SimplePhysics:
         if x < 0 or x > self.L or y < 0 or y > self.L: 
             return False
 
-        for bx, by, w, h in self.buildings:
+        for bx, by, w, h in self._buildings:
             if bx <= x <= bx + w and by <= y <= by + h:
                 return False
 
@@ -184,7 +184,7 @@ class SimplePhysics:
         x, y = position
         xp, yp = previous_position
 
-        for bx, by, w, h in self.buildings:
+        for bx, by, w, h in self._buildings:
             if bx <= x <= bx+w and by <= y <= by+h:
                 if xp < bx:                                                 # left
                     radian = np.pi-radian if radian > 0 else -np.pi-radian

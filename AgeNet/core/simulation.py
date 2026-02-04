@@ -51,7 +51,7 @@ class AgentSimulator:
         if self.training  : self.agent.learn(steps_per_train)
 
     # ----------------------------------------------------------------------------------
-    def manualEnvChage(self, environment: Environment):
+    def manualEnvChange(self, environment: Environment):
         if self.moving: position, speed, radian = self.agent.move()
         environment.update_entity(self.agent.id, position, speed, radian, edge=None)
 
@@ -76,25 +76,29 @@ class AgentsSimulator(AgentSimulator):
         self.environment = environment
 
         for agent in agents: 
-            agent_simulator = AgentSimulator(agent, Functions, environment.build_bounds)
+            agent_simulator = AgentSimulator(agent, Functions, environment._build_bounds)
             self.agents_simulator.append(agent_simulator)
 
 
     # ----------------------------------------------------------------------------------
     def run(self, agents: List[Agent], steps_per_train: int=10):
         for simulator in self.agents_simulator:
-            if   isinstance(self.environment, SimpleEnvironment): simulator.manualEnvChage(self.environment)
-            elif isinstance(self.environment, SumoEnvironment  ): simulator.sumoEnvChange (self.environment)
-            else: raise ValueError( "This environment does not exist (use simple or sumo)" )
-
+            self._EnvChange(simulator)
             simulator.step(agents, steps_per_train)
 
     # ----------------------------------------------------------------------------------
-    def add_agent(self, agent: List[Agent], Functions: List[bool] = [True, True, True]):
-        agent_simulator = AgentSimulator(agent, Functions, self.environment.build_bounds)
+    def add_agent(self, agent: Agent, Functions: List[bool] = [True, True, True]):
+        agent_simulator = AgentSimulator(agent, Functions, self.environment._build_bounds)
+        self._EnvChange(agent_simulator)
         self.agents_simulator.append(agent_simulator)
 
     # ----------------------------------------------------------------------------------
-    def remove_agent(self, agent):
+    def remove_agent(self, agent: Agent):
         self.agents_simulator = [ sim for sim in self.agents_simulator if sim.agent is not agent ]
+
+    # ----------------------------------------------------------------------------------
+    def _EnvChange(self, simulator: AgentSimulator):
+        if   isinstance(self.environment, SimpleEnvironment): simulator.manualEnvChange(self.environment)
+        elif isinstance(self.environment, SumoEnvironment  ): simulator.sumoEnvChange (self.environment)
+        else: raise ValueError( "This environment does not exist (use simple or sumo)" )
 

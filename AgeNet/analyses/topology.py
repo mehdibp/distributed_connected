@@ -8,7 +8,7 @@ from ..communication.channel import ChannelModel
 
 class NetworkTopology:
     def __init__(self, environment: Environment):
-        if hasattr(environment, "buildings"): self.obstacles = environment.build_bounds
+        if hasattr(environment, "buildings"): self.obstacles = environment._build_bounds
         else: self.obstacles = []
 
 

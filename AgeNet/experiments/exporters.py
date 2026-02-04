@@ -1,8 +1,8 @@
 
 import numpy as np
+import pandas as pd
 import networkx as nx
 from typing import List, Any
-from openpyxl import Workbook
 
 from ..core.agent import Agent
 from ..environments.base import Environment
@@ -13,8 +13,7 @@ from ..analyses.topology import NetworkTopology
 class ResultExporter:
     """
     Collects, stores, and exports simulation results.
-    This class is intentionally dumb: it only aggregates data
-    and never affects the simulation itself.
+    This class is intentionally dumb: it only aggregates data and never affects the simulation itself.
     """
 
     # ---------------------------------------------------------------------------------------
@@ -83,30 +82,29 @@ class ResultExporter:
         self.particle_results.append(step_agent_results)
 
     # ---------------------------------------------------------------------------------------
-    def export_excel(self, averaged_wb: Workbook, particle_wb: Workbook, sheet_name: str):
-        """ Export collected results into Excel workbooks. """
-
-        averaged_sheet = averaged_wb.create_sheet(title=sheet_name)
-        particle_sheet = particle_wb.create_sheet(title=sheet_name)
+    def export_excel(self, log_dir: str):
+        """ Export collected results into CSV. """
 
         # Headers -----------------------------------------------------------------------
-        averaged_sheet.append([ "step", "Hamiltonian", "Giant (%)", "Edges", "Energy", "Average_r", "Loss" ])
-        particle_sheet.append([
+        averaged_header = [ "step", "Hamiltonian", "Giant (%)", "Edges", "Energy", "Average_r", "Loss" ]
+        particle_header = [
             "step", "agent_id", "x", "y", "component", "r", "k", "rho", "Hamiltonian",
             "connected_to", "state", "action", "reward", "next_state", "loss"
-        ])
+        ]
 
         # Write data --------------------------------------------------------------------
+        flattened_results = []
+        for particle_result in self.particle_results:
+            for p in particle_result: flattened_results.append(p)
 
-        flattened_results = np.array(self.particle_results, dtype=object)
-        flattened_results = flattened_results.reshape( -1, flattened_results.shape[-1] )
+        averaged_df = pd.DataFrame(self.averaged_results, columns=averaged_header)
+        particle_df = pd.DataFrame(flattened_results,     columns=particle_header)
 
-        for row in self.averaged_results: averaged_sheet.append(row)
-        for row in     flattened_results: particle_sheet.append(list(row))
+        averaged_df.to_csv(f"{log_dir}/Averaged.csv", index=False)
+        particle_df.to_csv(f"{log_dir}/Particle.csv", index=False)
 
     # ---------------------------------------------------------------------------------------
     def reset(self):
         """ Clear all stored results. """
         self.averaged_results.clear()
         self.particle_results.clear()
-

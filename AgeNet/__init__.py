@@ -25,5 +25,6 @@ from .analyses.topology     import NetworkTopology
 from .analyses.visualization import NetworkVisualizer
 
 from .experiments.exporters import ResultExporter
+from .experiments.ploter    import ResultPloter
 
 

@@ -98,9 +98,12 @@ class RLBrain:
         if not any(np.isnan(g.numpy()).any() for g in grads if g is not None):
             self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
 
+    # ---------------------------------------------------------------------------------------
+    def save_model(self, output: str):
+        self.model.save(output)
+
 
     # ---------------------------------------------------------------------------------------
     @staticmethod
     def _custom_activation(x):
         return 100 - tf.nn.elu(-tf.sqrt(tf.nn.softplus(x)) + 100)
-

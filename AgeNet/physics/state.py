@@ -1,5 +1,6 @@
 import numpy as np
 from ..environments.base import Environment
+from ..environments.simple import SimpleEnvironment
 
 
 class PhysicalState:
@@ -14,11 +15,11 @@ class PhysicalState:
         self._direction: float | None=None
         self._edge:      float | None=None
 
-        self._init_position()
+        if isinstance(environment, SimpleEnvironment): self._init_position()
 
     # getters -------------------------------------------------------------------------------
     def get_entity_id(self) -> str       : return self._entity_id
-    def get_position (self) -> np.ndarray: return self._position.copy()
+    def get_position (self) -> np.ndarray: return self._position
     def get_speed    (self) -> float     : return self._speed
     def get_direction(self) -> float     : return self._direction
     def get_edge     (self) -> float     : return self._edge

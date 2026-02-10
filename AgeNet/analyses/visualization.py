@@ -12,8 +12,8 @@ class NetworkVisualizer:
     # ---------------------------------------------------------------------------------------
     def __init__(self, environment: Environment):
         self.environment = environment
-        if hasattr(environment, "buildings"): self.buildings = environment.buildings
-        else: self.buildings = []
+        if hasattr(environment, "_buildings"): self._buildings = environment._buildings
+        else: self._buildings = []
 
         self.topology = NetworkTopology(environment)
 
@@ -47,7 +47,7 @@ class NetworkVisualizer:
 
     # ---------------------------------------------------------------------------------------
     def _draw_buildings(self, step: int):
-        for build in self.buildings:
+        for build in self._buildings:
             x, y, w, h = build
             self.ax.add_patch( plt.Rectangle((x, y), width=w, height=h, fill=True, color='#146464cc', ec="black") )
 

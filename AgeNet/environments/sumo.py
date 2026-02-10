@@ -35,8 +35,6 @@ class SumoEnvironment(Environment):
         self.step_length = step_length
         self.seed = seed
 
-        self._buildings    = []
-        self._build_bounds = []
         self._started = False
 
         self._net_bounds: Tuple[float, float, float, float] | None = None   # network bounds

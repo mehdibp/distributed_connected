@@ -28,3 +28,6 @@ from .experiments.exporters import ResultExporter
 from .experiments.ploter    import ResultPloter
 
 
+from .core.action_policies.fixed_radius        import FixedRadiusPolicy
+from .core.action_policies.k_nearest_neighbors import KNNPolicy
+from .core.action_policies.minimum_degree      import MinDegreePolicy

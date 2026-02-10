@@ -60,7 +60,7 @@ class NeighborFinder:
             if distance <= self.agent.r:
                 connected_neighbors.append( (neighbor, distance) )
 
-        return connected_neighbors
+        return incoming_neighbors, connected_neighbors
     
     # ---------------------------------------------------------------------------------------  
     def _distance_to(self, other: "Agent") -> float:

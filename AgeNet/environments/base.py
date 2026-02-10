@@ -94,6 +94,8 @@ class Environment(BaseEnvironment, ABC):
 
     def __init__(self):
         self._entities: Dict[str, Entity] = {}
+        self._buildings    = []
+        self._build_bounds = []
         self._time: float = 0.0
 
     # agent queries - Public API (used by controller / state extractor) ---------------------

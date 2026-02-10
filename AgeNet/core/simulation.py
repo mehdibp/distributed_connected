@@ -99,6 +99,6 @@ class AgentsSimulator(AgentSimulator):
     # ----------------------------------------------------------------------------------
     def _EnvChange(self, simulator: AgentSimulator):
         if   isinstance(self.environment, SimpleEnvironment): simulator.manualEnvChange(self.environment)
-        elif isinstance(self.environment, SumoEnvironment  ): simulator.sumoEnvChange (self.environment)
+        elif isinstance(self.environment, SumoEnvironment  ): simulator.sumoEnvChange  (self.environment)
         else: raise ValueError( "This environment does not exist (use simple or sumo)" )
 

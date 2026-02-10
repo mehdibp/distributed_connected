@@ -16,8 +16,6 @@ class SimpleEnvironment(Environment):
         super().__init__()
 
         self.L = L
-        self._buildings    = []
-        self._build_bounds = []
 
         if   buildings_type == "random" : self._random_buildings (num_buildings)
         elif buildings_type == "regular": self._regular_buildings(num_streets)

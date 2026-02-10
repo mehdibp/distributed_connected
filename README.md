@@ -48,6 +48,12 @@ VaNet/
 │   │
 │   │── core/                   # agent + time evolution
 │   │   ├── __init__.py
+│   │   ├── action_policies/    # Which algorithm is implemented
+│   │   │   ├── __init__.py
+│   │   │   ├── base.py
+│   │   │   ├── fixed_redius.py
+│   │   │   ├── k_nearest_neighbors.py
+│   │   │   └── minimum_degree.py
 │   │   ├── agent.py
 │   │   └── simulator.py
 │   │

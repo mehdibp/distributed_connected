@@ -17,6 +17,9 @@ from ..learning.state import StateExtractor
 from ..learning.hamiltonian import Hamiltonian
 from ..learning.radius_controller import RadiusController
 
+# -------- action policy --------
+from .action_policies import BasePolicy, FixedRadiusPolicy, KNNPolicy, MinDegreePolicy
+
 
 
 class Agent:
@@ -28,7 +31,9 @@ class Agent:
         communication_parameters: List[float],
 
         physical_state: PhysicalState, 
-        mobility: MobilityModel | None = None
+        mobility: MobilityModel | None = None,
+
+        action_policy_parameters: List = ['RL']
     ):
         
         self.id = agent_id
@@ -45,10 +50,12 @@ class Agent:
 
         # -------- learning --------
         self.hamiltonian_model  = Hamiltonian(alphas)
-        self.radius_policy      = RadiusRequestPolicy(self, self.hamiltonian_model)
+        self.send_request       = RadiusRequestPolicy(self, self.hamiltonian_model)
         self.radius_controller  = RadiusController(self)
         self.state              = StateExtractor(self, self.channel)
         self.brain              = RLBrain(*brain_parameters)
+
+        self.action_policy = self._build_policy(action_policy_parameters)
 
         # -------- bookkeeping --------
         self.position = self.physical_state.get_position()
@@ -85,11 +92,10 @@ class Agent:
         self.physical_state.set_edge (edge)
 
     def update_neighbors(self, all_agents: List["Agent"]):
-        self.neighbors    = self.neighbor_finder.neighbors(all_agents)
-        self.incoming_neighbors = self.neighbor_finder.incoming_neighbors(all_agents)
+        self.incoming_neighbors, self.neighbors = self.neighbor_finder.neighbors(all_agents)
 
     def decide_request(self):
-        self.r = self.radius_policy.decide(self.incoming_neighbors)
+        self.r = self.send_request.decide(self.incoming_neighbors)
 
     def flip_radius(self, delta_H: float):
         self.r = self.radius_controller.flip(self.delta_r, delta_H)
@@ -104,7 +110,10 @@ class Agent:
         self.brain.train_per(steps_per_train)
 
     def act(self, state: np.ndarray) -> int:
-        return self.brain.act(state)
+        if self.action_policy is None: action = self.brain.act(state)
+        else: action = self.action_policy.act()
+
+        return action
 
     def hamiltonian(self) -> float:
         return self.hamiltonian_model(self.k, self.r, self.neighbors)
@@ -112,6 +121,15 @@ class Agent:
     def observe(self, obstacles):
         self.k, self.r, self.rho = self.state.mystate(obstacles)
         return np.array([self.k, self.r, self.rho], dtype=np.float32)
+
+
+    def _build_policy(self, action_policy_parameters: List) -> BasePolicy | None:
+        policy_type = action_policy_parameters[0]
+        if   policy_type == "FR" : return FixedRadiusPolicy(self)
+        elif policy_type == "kNN": return KNNPolicy(self, *action_policy_parameters[1:])
+        elif policy_type == "MD" : return MinDegreePolicy(self, *action_policy_parameters[1:])
+        elif policy_type == "RL" : return None
+        else: raise ValueError( "Policy type must include FR or kNN or MD or RL" )
 
 
     # ==================================================================================
@@ -128,5 +146,3 @@ class Agent:
     # ----------------------------------------------------------------------------------
     def __repr__(self):
         return f"Agent(id={self.id}, pos: {self.position} - (r={self.r:.2f}, k={self.k}, rho={self.rho:.2f}) )"
-
-

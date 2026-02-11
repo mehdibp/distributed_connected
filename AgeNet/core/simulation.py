@@ -53,6 +53,7 @@ class AgentSimulator:
     # ----------------------------------------------------------------------------------
     def manualEnvChange(self, environment: Environment):
         if self.moving: position, speed, radian = self.agent.move()
+        else: position, speed, radian = self.agent.position, self.agent.speed, self.agent.radian
         environment.update_entity(self.agent.id, position, speed, radian, edge=None)
 
         self.agent.update_physical_state(position, speed, radian, edge=None)

@@ -84,7 +84,7 @@ VaNet/
 │   └── omnetpp.ini             # Physical layer & MAC parameters
 │
 ├── Results/                    # Simulation logs & Excel exports
-├── Saved Model/                # Pre-trained .keras models
+├── Trained Models/             # Pre-trained .keras models
 │
 └── main.ipynb                  # Main Execution Notebook
 ```

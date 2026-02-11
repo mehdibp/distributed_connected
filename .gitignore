@@ -169,19 +169,16 @@ cython_debug/
 
 # My folders!!!
 /py
-/Results
+/Results/*
+!Results/Details.xlsx
 
-Saved Model/* 
-!exported_model
-!Saved Model/SevedModel tf=2-10.keras
-!Saved Model/SevedModel tf=2-15.keras
-!Saved Model/SevedModel tf=2-18.keras
+Trained Models/*
+!Trained Models/Details.xlsx
+!Trained Models/TestModel_minHamiltonian.keras
 
 /Sumo/*
 !Sumo/SumoScenario/
 
-
 /tests
 /notebooks
-Agents - tests.ipynb
 tests.ipynb

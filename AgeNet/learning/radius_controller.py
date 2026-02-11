@@ -20,7 +20,7 @@ class RadiusController:
         action = (action - action_dim_)/(action_dim_)   # between -1 and +1
 
         delta_r = action* np.sqrt(1/self.agent.rho)/4 *np.random.random()
-        radius  = max(0.0, radius + delta_r)
+        radius  = max(1e-10, radius + delta_r)
 
         return radius, delta_r
 
@@ -30,5 +30,6 @@ class RadiusController:
         delta_H_clip = np.clip(-delta_H / 4, -20, 2)
         if np.exp(delta_H_clip) < np.random.random():
             radius -= delta_r * np.random.random()
+            radius  = max(1e-10, radius)
 
         return radius

@@ -82,7 +82,7 @@ class ResultExporter:
         self.particle_results.append(step_agent_results)
 
     # ---------------------------------------------------------------------------------------
-    def export_excel(self, log_dir: str):
+    def export_excel(self, log_dir: str, seed = 30):
         """ Export collected results into CSV. """
 
         # Headers -----------------------------------------------------------------------
@@ -100,8 +100,8 @@ class ResultExporter:
         averaged_df = pd.DataFrame(self.averaged_results, columns=averaged_header)
         particle_df = pd.DataFrame(flattened_results,     columns=particle_header)
 
-        averaged_df.to_csv(f"{log_dir}/Averaged.csv", index=False)
-        particle_df.to_csv(f"{log_dir}/Particle.csv", index=False)
+        averaged_df.to_csv(f"{log_dir}/Averaged (seed = {seed}).csv", index=False)
+        particle_df.to_csv(f"{log_dir}/Particle (seed = {seed}).csv", index=False)
 
     # ---------------------------------------------------------------------------------------
     def reset(self):

@@ -19,8 +19,11 @@ class RadiusController:
         action_dim_ = (action_dim-1)/2
         action = (action - action_dim_)/(action_dim_)   # between -1 and +1
 
+        # rho = self.agent.rho if self.agent.rho != 0 else 1
+        # delta_r = action* np.sqrt(1/rho)/4 *np.random.random()
         delta_r = action* np.sqrt(1/self.agent.rho)/4 *np.random.random()
         radius  = max(1e-10, radius + delta_r)
+        if radius == 1e-10: radius = 1
 
         return radius, delta_r
 

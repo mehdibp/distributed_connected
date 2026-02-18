@@ -24,6 +24,6 @@ class StateExtractor:
 
         _, d_max = max(self.agent.incoming_neighbors, key=lambda x: x[1], default=(None, self.agent.r))
         rho = (len(self.agent.incoming_neighbors)+1) / (np.pi*d_max**2)
-        rho = np.clip(rho, rho, 8)    ### should debug in training
+        if len(self.agent.incoming_neighbors) == 0 and rho > 1: rho = 0.1
         
         return np.array([k, self.agent.r, rho], dtype=np.float32)

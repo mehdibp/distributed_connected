@@ -42,7 +42,8 @@ class RLBrain:
     # ---------------------------------------------------------------------------------------
     def _build_model(self, model_path: str=None):
         tf.keras.backend.clear_session()
-        custom_activation = {'custom_activation': tf.keras.layers.Activation(self._custom_activation)}
+        custom_activation = {'_custom_activation': tf.keras.layers.Activation(self._custom_activation)}
+        # tf.keras.utils.get_custom_objects().update({ '_custom_activation': _custom_activation })
 
         if model_path is not None:
             model = tf.keras.models.load_model(model_path, custom_objects=custom_activation, compile=False)

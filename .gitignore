@@ -170,10 +170,10 @@ cython_debug/
 # My folders!!!
 /py
 /Results/*
-!Results/Details.xlsx
+!Results/Results Details.xlsx
 
 Trained Models/*
-!Trained Models/Details.xlsx
+!Trained Models/Models Details.xlsx
 !Trained Models/TestModel_minHamiltonian.keras
 
 /Sumo/*
